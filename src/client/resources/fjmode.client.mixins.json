@@ -6,6 +6,7 @@
 		"AvatarRenderStateMixin",
 		"AvatarRendererMixin",
 		"LivingEntityRendererAccessor",
+		"MinecraftAttackMixin",
 		"PlayerModelMixin"
 	],
 	"injectors": {

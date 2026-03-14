@@ -15,11 +15,10 @@ import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.phys.Vec3;
 
 public final class SwordFlightController {
-	private static final Map<UUID, Integer> BOOST_COOLDOWNS = new HashMap<>();
+	private static final Map<UUID, Integer> ACTIVE_BOOST_TICKS = new HashMap<>();
 	private static final Map<UUID, Boolean> ACTIVE_FLIGHT = new HashMap<>();
-	private static final double BASE_GLIDE_ACCELERATION = 0.045D;
-	private static final double BASE_BOOST_STRENGTH = 0.9D;
-	private static final int BOOST_COOLDOWN_TICKS = 10;
+	private static final int BOOST_FLIGHT_DURATION = 1;
+	private static final double BASE_GRAVITY = 0.08D;
 
 	private SwordFlightController() {
 	}
@@ -32,22 +31,25 @@ public final class SwordFlightController {
 		});
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
 			UUID playerId = handler.player.getUUID();
-			BOOST_COOLDOWNS.remove(playerId);
+			ACTIVE_BOOST_TICKS.remove(playerId);
 			ACTIVE_FLIGHT.remove(playerId);
 		});
 	}
 
 	public static boolean canUseSwordFlight(LivingEntity entity) {
-		ItemStack weapon = entity.getMainHandItem();
-		if (!weapon.is(ItemTags.SWORDS)) {
+		if (!hasSwordFlightWeapon(entity)) {
 			return false;
 		}
 
-		return getSwordFlightLevel(entity) > 0
-			&& !entity.isInWater()
+		return !entity.isInWater()
 			&& !entity.isInLava()
 			&& !entity.isPassenger()
 			&& !entity.isSleeping();
+	}
+
+	public static boolean hasSwordFlightWeapon(LivingEntity entity) {
+		ItemStack weapon = entity.getMainHandItem();
+		return weapon.is(ItemTags.SWORDS) && getSwordFlightLevel(entity) > 0;
 	}
 
 	public static int getSwordFlightLevel(LivingEntity entity) {
@@ -77,45 +79,34 @@ public final class SwordFlightController {
 		}
 
 		UUID playerId = player.getUUID();
-		if (BOOST_COOLDOWNS.getOrDefault(playerId, 0) > 0) {
-			return;
-		}
-
 		if (!player.hasInfiniteMaterials() && player.getFoodData().getFoodLevel() <= 0) {
 			return;
 		}
 
 		int enchantmentLevel = getSwordFlightLevel(player);
-		Vec3 boostedVelocity = player.getDeltaMovement().add(
-			player.getLookAngle().normalize().scale(BASE_BOOST_STRENGTH + 0.25D * enchantmentLevel)
-		);
-		double maxSpeed = 2.6D + enchantmentLevel * 0.2D;
-
-		if (boostedVelocity.lengthSqr() > maxSpeed * maxSpeed) {
-			boostedVelocity = boostedVelocity.normalize().scale(maxSpeed);
-		}
-
-		player.setDeltaMovement(boostedVelocity);
 		player.resetFallDistance();
 		player.applyPostImpulseGraceTime(10);
 		player.hurtMarked = true;
 
 		if (!player.hasInfiniteMaterials()) {
-			player.causeFoodExhaustion(1.5F + 0.5F * enchantmentLevel);
+			player.causeFoodExhaustion(2.0F + 0.75F * enchantmentLevel);
 		}
 
-		BOOST_COOLDOWNS.put(playerId, BOOST_COOLDOWN_TICKS);
+		int boostDuration = getVanillaLikeBoostDuration(player);
+		int remainingBoostTicks = ACTIVE_BOOST_TICKS.getOrDefault(playerId, 0);
+		ACTIVE_BOOST_TICKS.put(playerId, remainingBoostTicks + boostDuration);
 	}
 
 	private static void tickPlayer(ServerPlayer player) {
 		UUID playerId = player.getUUID();
-		int cooldown = BOOST_COOLDOWNS.getOrDefault(playerId, 0);
-		if (cooldown > 0) {
-			BOOST_COOLDOWNS.put(playerId, cooldown - 1);
+		int boostTicks = ACTIVE_BOOST_TICKS.getOrDefault(playerId, 0);
+		if (boostTicks > 0) {
+			ACTIVE_BOOST_TICKS.put(playerId, boostTicks - 1);
 		}
 
 		if (!canUseSwordFlight(player)) {
 			ACTIVE_FLIGHT.remove(playerId);
+			ACTIVE_BOOST_TICKS.remove(playerId);
 			return;
 		}
 
@@ -130,22 +121,13 @@ public final class SwordFlightController {
 
 		if (player.onGround() || player.isSwimming() || player.isInWater() || player.isInLava()) {
 			ACTIVE_FLIGHT.remove(playerId);
+			ACTIVE_BOOST_TICKS.remove(playerId);
 			return;
 		}
 
-		Vec3 lookDirection = player.getLookAngle().normalize();
-		Vec3 velocity = player.getDeltaMovement();
-		Vec3 nextVelocity = velocity.scale(0.985D).add(lookDirection.scale(BASE_GLIDE_ACCELERATION + 0.01D * getSwordFlightLevel(player)));
-		double maxHorizontalSpeed = 1.35D;
-		double horizontalSpeed = Math.sqrt(nextVelocity.x * nextVelocity.x + nextVelocity.z * nextVelocity.z);
-
-		if (horizontalSpeed > maxHorizontalSpeed) {
-			double scale = maxHorizontalSpeed / horizontalSpeed;
-			nextVelocity = new Vec3(nextVelocity.x * scale, nextVelocity.y, nextVelocity.z * scale);
-		}
-
-		if (nextVelocity.y < -0.9D) {
-			nextVelocity = new Vec3(nextVelocity.x, -0.9D, nextVelocity.z);
+		Vec3 nextVelocity = applyElytraLikeFlight(player);
+		if (boostTicks > 0) {
+			nextVelocity = applyFireworkLikeBoost(player, nextVelocity);
 		}
 
 		player.setDeltaMovement(nextVelocity);
@@ -163,5 +145,59 @@ public final class SwordFlightController {
 			&& !player.onClimbable()
 			&& !player.isSwimming()
 			&& player.getDeltaMovement().y <= 0.0D;
+	}
+
+	private static Vec3 applyElytraLikeFlight(ServerPlayer player) {
+		Vec3 lookDirection = player.getLookAngle();
+		Vec3 velocity = player.getDeltaMovement();
+		double horizontalLookLength = Math.sqrt(lookDirection.x * lookDirection.x + lookDirection.z * lookDirection.z);
+		double horizontalSpeed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+		double speed = velocity.length();
+		double pitchRadians = Math.toRadians(player.getXRot());
+		double pitchCos = Math.cos(pitchRadians);
+		double pitchCosSquared = pitchCos * pitchCos;
+
+		Vec3 nextVelocity = velocity.add(0.0D, BASE_GRAVITY * (-1.0D + pitchCosSquared * 0.75D), 0.0D);
+
+		if (nextVelocity.y < 0.0D && horizontalLookLength > 0.0D) {
+			double lift = nextVelocity.y * -0.1D * pitchCosSquared;
+			nextVelocity = nextVelocity.add(
+				lookDirection.x * lift / horizontalLookLength,
+				lift,
+				lookDirection.z * lift / horizontalLookLength
+			);
+		}
+
+		if (pitchRadians < 0.0D && horizontalLookLength > 0.0D) {
+			double divePull = horizontalSpeed * -Math.sin(pitchRadians) * 0.04D;
+			nextVelocity = nextVelocity.add(
+				-lookDirection.x * divePull / horizontalLookLength,
+				divePull * 3.2D,
+				-lookDirection.z * divePull / horizontalLookLength
+			);
+		}
+
+		if (horizontalLookLength > 0.0D) {
+			nextVelocity = nextVelocity.add(
+				(lookDirection.x / horizontalLookLength * speed - nextVelocity.x) * 0.1D,
+				0.0D,
+				(lookDirection.z / horizontalLookLength * speed - nextVelocity.z) * 0.1D
+			);
+		}
+
+		return nextVelocity.multiply(0.99D, 0.98D, 0.99D);
+	}
+
+	private static Vec3 applyFireworkLikeBoost(ServerPlayer player, Vec3 velocity) {
+		Vec3 lookDirection = player.getLookAngle();
+		return velocity.add(
+			lookDirection.x * 0.1D + (lookDirection.x * 1.5D - velocity.x) * 0.5D,
+			lookDirection.y * 0.1D + (lookDirection.y * 1.5D - velocity.y) * 0.5D,
+			lookDirection.z * 0.1D + (lookDirection.z * 1.5D - velocity.z) * 0.5D
+		);
+	}
+
+	private static int getVanillaLikeBoostDuration(ServerPlayer player) {
+		return 10 * (BOOST_FLIGHT_DURATION + 1) + player.getRandom().nextInt(6) + player.getRandom().nextInt(7);
 	}
 }
