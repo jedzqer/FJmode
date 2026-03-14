@@ -1,0 +1,13 @@
+{
+	"required": true,
+	"package": "com.fjmode.mixin.client",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"AvatarRenderStateMixin",
+		"AvatarRendererMixin",
+		"PlayerModelMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

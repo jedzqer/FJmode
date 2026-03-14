@@ -1,9 +1,10 @@
 {
 	"required": true,
-	"package": "com.example.mixin.client",
+	"package": "com.fjmode.mixin",
 	"compatibilityLevel": "JAVA_21",
-	"client": [
-		"ExampleClientMixin"
+	"mixins": [
+		"PlayerAttackMixin",
+		"PlayerMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
