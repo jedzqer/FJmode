@@ -5,7 +5,7 @@
 目前项目已经落地的第一个功能附魔为 `御剑飞行`：
 
 - 可附加在剑上
-- 持有附魔剑时可进入类似鞘翅的前向飞行
+- 持有附魔剑时可进入带惯性的自定义前向飞行
 - 飞行时保持站立姿态
 - 玩家脚下会渲染一把与主手同款的剑模型，剑尖朝向视线前方
 - 飞行中按 `Ctrl`（冲刺键）可触发一次类似烟花的前冲加速
@@ -46,7 +46,7 @@
 
 - [SwordFlightController.java](C:/Users/jed/FJmode/src/main/java/com/fjmode/flight/SwordFlightController.java)
   御剑飞行的核心服务端逻辑，包括：
-  飞行判定、自动进入滑翔、速度控制、耐久消耗、加速处理。
+  飞行判定、自定义飞行状态维护、速度控制、耐久消耗、加速处理。
 
 - [SwordFlightClient.java](C:/Users/jed/FJmode/src/client/java/com/fjmode/flight/SwordFlightClient.java)
   客户端每 tick 监听冲刺键，飞行中发送加速网络包。
@@ -89,6 +89,16 @@
 
 当前标签直接指向 `#minecraft:swords`，即所有原版剑都可附魔。
 
+附魔可见性标签：
+
+- [data/minecraft/tags/enchantment/non_treasure.json](C:/Users/jed/FJmode/src/main/resources/data/minecraft/tags/enchantment/non_treasure.json)
+- [data/minecraft/tags/enchantment/on_random_loot.json](C:/Users/jed/FJmode/src/main/resources/data/minecraft/tags/enchantment/on_random_loot.json)
+
+当前已接入：
+
+- 普通附魔池
+- 随机战利品附魔池
+
 ### 2. 飞行行为
 
 飞行逻辑主要实现于 [SwordFlightController.java](C:/Users/jed/FJmode/src/main/java/com/fjmode/flight/SwordFlightController.java)。
@@ -97,8 +107,9 @@
 
 - 玩家主手必须持有带 `御剑飞行` 的剑
 - 玩家不能在水中、岩浆中、乘骑中或睡眠中使用
-- 满足条件且处于下落状态时，会自动进入 `fall flying`
-- 飞行惯性复用原版滑翔状态，并叠加一层前向推进
+- 满足条件且处于下落状态时，会激活自定义御剑飞行状态
+- 飞行使用模组维护的自定义状态，不依赖原版鞘翅 `fall flying`
+- 飞行具有前冲惯性，并持续施加前向推进
 - 飞行中会定期消耗剑耐久
 - 飞行中按 `Ctrl` 可触发一次短 CD 加速
 - 加速会额外消耗饱食度
@@ -125,7 +136,7 @@
 
 当前表现包括：
 
-- 飞行时玩家改为站立姿态，而不是原版鞘翅的俯卧姿态
+- 飞行时玩家改为站立姿态
 - 脚下渲染主手物品同款剑模型
 - 如果主手是附魔钻石剑，则脚下显示附魔钻石剑
 - 剑朝向玩家当前视线方向
@@ -147,7 +158,6 @@
 
 已使用的 mixin 目的：
 
-- 放开持剑滑翔条件
 - 禁止附魔剑近战攻击
 - 向玩家渲染状态挂接额外数据
 - 给玩家渲染器添加御剑模型层
@@ -215,7 +225,7 @@
 当前项目已经具备继续扩展的基础框架，后续可以继续做：
 
 - 新增更多附魔
-- 为附魔加入附魔台出现范围、战利品、村民交易等完整接入
+- 为附魔加入村民交易等更多自然获取渠道
 - 增加更多自定义附魔效果类型
 - 增加命令或调试工具，方便测试飞行参数
 - 细调御剑模型的位置、角度、缩放和飞行手感
@@ -225,6 +235,6 @@
 截至当前版本，项目至少已验证：
 
 - `.\gradlew.bat build` 可通过
-- 附魔、网络、服务端飞行逻辑、客户端渲染和 mixin 已完成接线
+- 附魔、附魔标签、网络、服务端飞行逻辑、客户端渲染和 mixin 已完成接线
 
 如果后续继续开发，建议优先保持 README 与实际源码同步更新。

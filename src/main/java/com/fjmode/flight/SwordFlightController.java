@@ -16,6 +16,7 @@ import net.minecraft.world.phys.Vec3;
 
 public final class SwordFlightController {
 	private static final Map<UUID, Integer> BOOST_COOLDOWNS = new HashMap<>();
+	private static final Map<UUID, Boolean> ACTIVE_FLIGHT = new HashMap<>();
 	private static final double BASE_GLIDE_ACCELERATION = 0.045D;
 	private static final double BASE_BOOST_STRENGTH = 0.9D;
 	private static final int BOOST_COOLDOWN_TICKS = 10;
@@ -29,7 +30,11 @@ public final class SwordFlightController {
 				tickPlayer(player);
 			}
 		});
-		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> BOOST_COOLDOWNS.remove(handler.player.getUUID()));
+		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+			UUID playerId = handler.player.getUUID();
+			BOOST_COOLDOWNS.remove(playerId);
+			ACTIVE_FLIGHT.remove(playerId);
+		});
 	}
 
 	public static boolean canUseSwordFlight(LivingEntity entity) {
@@ -52,8 +57,22 @@ public final class SwordFlightController {
 		);
 	}
 
+	public static boolean isSwordFlightActive(LivingEntity entity) {
+		if (!canUseSwordFlight(entity)) {
+			return false;
+		}
+
+		if (entity instanceof ServerPlayer serverPlayer) {
+			return ACTIVE_FLIGHT.getOrDefault(serverPlayer.getUUID(), false);
+		}
+
+		return !entity.onGround()
+			&& !entity.isSwimming()
+			&& entity.getDeltaMovement().lengthSqr() > 0.08D;
+	}
+
 	public static void triggerBoost(ServerPlayer player) {
-		if (!player.isFallFlying() || !canUseSwordFlight(player)) {
+		if (!isSwordFlightActive(player)) {
 			return;
 		}
 
@@ -96,15 +115,21 @@ public final class SwordFlightController {
 		}
 
 		if (!canUseSwordFlight(player)) {
+			ACTIVE_FLIGHT.remove(playerId);
 			return;
 		}
 
 		if (shouldStartSwordFlight(player)) {
-			player.startFallFlying();
+			ACTIVE_FLIGHT.put(playerId, true);
 			player.hurtMarked = true;
 		}
 
-		if (!player.isFallFlying()) {
+		if (!ACTIVE_FLIGHT.getOrDefault(playerId, false)) {
+			return;
+		}
+
+		if (player.onGround() || player.isSwimming() || player.isInWater() || player.isInLava()) {
+			ACTIVE_FLIGHT.remove(playerId);
 			return;
 		}
 
@@ -135,7 +160,6 @@ public final class SwordFlightController {
 
 	private static boolean shouldStartSwordFlight(ServerPlayer player) {
 		return !player.onGround()
-			&& !player.isFallFlying()
 			&& !player.onClimbable()
 			&& !player.isSwimming()
 			&& player.getDeltaMovement().y <= 0.0D;

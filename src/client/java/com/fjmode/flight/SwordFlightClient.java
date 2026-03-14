@@ -20,7 +20,7 @@ public final class SwordFlightClient {
 			return;
 		}
 
-		if (!player.isFallFlying() || !SwordFlightController.canUseSwordFlight(player)) {
+		if (!SwordFlightController.isSwordFlightActive(player)) {
 			return;
 		}
 
