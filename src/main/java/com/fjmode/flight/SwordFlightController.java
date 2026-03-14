@@ -20,6 +20,9 @@ public final class SwordFlightController {
 	private static final Map<UUID, Boolean> ACTIVE_FLIGHT = new HashMap<>();
 	private static final int BOOST_FLIGHT_DURATION = 1;
 	private static final int BOOST_COOLDOWN_DURATION = 6;
+	private static final int DURABILITY_LOSS_INTERVAL_TICKS = 40;
+	private static final float BOOST_EXHAUSTION_BASE = 1.75F;
+	private static final float BOOST_EXHAUSTION_PER_LEVEL = 0.6F;
 	private static final double BASE_GRAVITY = 0.08D;
 
 	private SwordFlightController() {
@@ -96,7 +99,7 @@ public final class SwordFlightController {
 		player.hurtMarked = true;
 
 		if (!player.hasInfiniteMaterials()) {
-			player.causeFoodExhaustion(2.0F + 0.75F * enchantmentLevel);
+			player.causeFoodExhaustion(BOOST_EXHAUSTION_BASE + BOOST_EXHAUSTION_PER_LEVEL * enchantmentLevel);
 		}
 
 		int boostDuration = getVanillaLikeBoostDuration(player);
@@ -150,7 +153,7 @@ public final class SwordFlightController {
 		player.applyPostImpulseGraceTime(5);
 		player.hurtMarked = true;
 
-		if (!player.hasInfiniteMaterials() && player.tickCount % 20 == 0) {
+		if (!player.hasInfiniteMaterials() && player.tickCount % DURABILITY_LOSS_INTERVAL_TICKS == 0) {
 			player.getMainHandItem().hurtAndBreak(1, player, EquipmentSlot.MAINHAND);
 		}
 	}
