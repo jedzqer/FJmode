@@ -7,6 +7,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 
 public final class SwordFlightClient {
+	private static boolean sprintKeyWasDown;
+
 	private SwordFlightClient() {
 	}
 
@@ -17,14 +19,19 @@ public final class SwordFlightClient {
 	private static void tickClient(Minecraft client) {
 		LocalPlayer player = client.player;
 		if (player == null || client.isPaused()) {
+			sprintKeyWasDown = false;
 			return;
 		}
 
+		boolean sprintKeyDown = client.options.keySprint.isDown();
 		if (!SwordFlightController.isSwordFlightActive(player)) {
+			sprintKeyWasDown = sprintKeyDown;
 			return;
 		}
 
-		if (client.options.keySprint.consumeClick() && ClientPlayNetworking.canSend(SwordFlightBoostPayload.TYPE)) {
+		boolean shouldTriggerBoost = sprintKeyDown && !sprintKeyWasDown;
+		sprintKeyWasDown = sprintKeyDown;
+		if (shouldTriggerBoost && ClientPlayNetworking.canSend(SwordFlightBoostPayload.TYPE)) {
 			ClientPlayNetworking.send(SwordFlightBoostPayload.INSTANCE);
 		}
 	}

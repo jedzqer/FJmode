@@ -16,8 +16,10 @@ import net.minecraft.world.phys.Vec3;
 
 public final class SwordFlightController {
 	private static final Map<UUID, Integer> ACTIVE_BOOST_TICKS = new HashMap<>();
+	private static final Map<UUID, Integer> BOOST_COOLDOWN_TICKS = new HashMap<>();
 	private static final Map<UUID, Boolean> ACTIVE_FLIGHT = new HashMap<>();
 	private static final int BOOST_FLIGHT_DURATION = 1;
+	private static final int BOOST_COOLDOWN_DURATION = 6;
 	private static final double BASE_GRAVITY = 0.08D;
 
 	private SwordFlightController() {
@@ -32,6 +34,7 @@ public final class SwordFlightController {
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
 			UUID playerId = handler.player.getUUID();
 			ACTIVE_BOOST_TICKS.remove(playerId);
+			BOOST_COOLDOWN_TICKS.remove(playerId);
 			ACTIVE_FLIGHT.remove(playerId);
 		});
 	}
@@ -79,6 +82,10 @@ public final class SwordFlightController {
 		}
 
 		UUID playerId = player.getUUID();
+		if (BOOST_COOLDOWN_TICKS.getOrDefault(playerId, 0) > 0) {
+			return;
+		}
+
 		if (!player.hasInfiniteMaterials() && player.getFoodData().getFoodLevel() <= 0) {
 			return;
 		}
@@ -95,6 +102,7 @@ public final class SwordFlightController {
 		int boostDuration = getVanillaLikeBoostDuration(player);
 		int remainingBoostTicks = ACTIVE_BOOST_TICKS.getOrDefault(playerId, 0);
 		ACTIVE_BOOST_TICKS.put(playerId, remainingBoostTicks + boostDuration);
+		BOOST_COOLDOWN_TICKS.put(playerId, BOOST_COOLDOWN_DURATION);
 	}
 
 	private static void tickPlayer(ServerPlayer player) {
@@ -104,9 +112,15 @@ public final class SwordFlightController {
 			ACTIVE_BOOST_TICKS.put(playerId, boostTicks - 1);
 		}
 
+		int boostCooldownTicks = BOOST_COOLDOWN_TICKS.getOrDefault(playerId, 0);
+		if (boostCooldownTicks > 0) {
+			BOOST_COOLDOWN_TICKS.put(playerId, boostCooldownTicks - 1);
+		}
+
 		if (!canUseSwordFlight(player)) {
 			ACTIVE_FLIGHT.remove(playerId);
 			ACTIVE_BOOST_TICKS.remove(playerId);
+			BOOST_COOLDOWN_TICKS.remove(playerId);
 			return;
 		}
 
@@ -122,6 +136,7 @@ public final class SwordFlightController {
 		if (player.onGround() || player.isSwimming() || player.isInWater() || player.isInLava()) {
 			ACTIVE_FLIGHT.remove(playerId);
 			ACTIVE_BOOST_TICKS.remove(playerId);
+			BOOST_COOLDOWN_TICKS.remove(playerId);
 			return;
 		}
 
