@@ -20,11 +20,15 @@ public final class SwordFlightSwordLayer extends RenderLayer<AvatarRenderState, 
 			return;
 		}
 
+		PlayerModel model = this.getParentModel();
+
 		poseStack.pushPose();
-		poseStack.translate(0.0F, 1.55F, 0.0F);
+		// Anchor the sword to the body center, then offset it down to the feet.
+		model.body.translateAndRotate(poseStack);
+		poseStack.translate(0.0F, 1.45F, 0.0F);
 		poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(180.0F - renderState.yRot)));
-		poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(renderState.xRot)));
-		poseStack.translate(0.0F, 0.45F, 0.0F);
+		poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(-renderState.xRot)));
+		poseStack.translate(0.0F, 0.06F, 0.0F);
 		poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(90.0F)));
 		poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(-45.0F)));
 		poseStack.scale(1.6F, 1.6F, 1.6F);

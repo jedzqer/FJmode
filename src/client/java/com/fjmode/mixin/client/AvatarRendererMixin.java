@@ -7,8 +7,10 @@ import net.minecraft.client.entity.ClientAvatarEntity;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.player.AvatarRenderer;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
+import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.Avatar;
 import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -35,6 +37,14 @@ public abstract class AvatarRendererMixin<AvatarlikeEntity extends Avatar & Clie
 				ItemDisplayContext.FIXED,
 				entity
 			);
+
+			if (renderState.mainArm == HumanoidArm.RIGHT) {
+				renderState.rightHandItemState.clear();
+				renderState.rightHandItemStack = ItemStack.EMPTY;
+			} else {
+				renderState.leftHandItemState.clear();
+				renderState.leftHandItemStack = ItemStack.EMPTY;
+			}
 		}
 	}
 }
