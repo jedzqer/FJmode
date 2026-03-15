@@ -3,6 +3,7 @@
 	"package": "com.fjmode.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"mixins": [
+		"ItemUseMixin",
 		"PlayerAttackMixin"
 	],
 	"injectors": {

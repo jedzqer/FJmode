@@ -1,6 +1,6 @@
 # FJmode
 
-`FJmode` 是一个基于 Fabric 的 Minecraft `1.21.11` 模组项目，当前方向是附魔效果扩展。现阶段已实现的核心内容为剑类附魔 `御剑飞行`。
+`FJmode` 是一个基于 Fabric 的 Minecraft `1.21.11` 模组项目，当前方向是附魔效果扩展。现阶段已实现两个剑类附魔：`御剑飞行` 与 `万剑归宗`。
 
 ## 技术栈
 
@@ -26,6 +26,21 @@
 - 助推会额外消耗饱食度
 - 飞行过程会持续消耗剑耐久
 
+### 万剑归宗
+
+- 可附加在剑上
+- 附魔台最高 `2` 级，权重较低，属于较难刷出的普通附魔
+- 右键长按时使用三叉戟式蓄力动作，松手后发射飞剑
+- 飞剑飞行阶段不生成真实投掷物实体，服务端维护虚拟飞剑对象池
+- 可同时存在多把飞剑
+- 虚拟飞剑使用 Boids 风格运动规则生成自然群飞轨迹
+- 玩家用附魔剑左键命中实体后，该实体会被设为当前追踪目标
+- 追踪目标时会关闭 Boids 中的 `Separation` 项，让飞剑更集中扑向目标
+- 飞剑命中目标时，按飞剑池内所有参与攻击的剑伤害总和除以 `3` 结算一次伤害
+- 单把剑伤害会尽量带上剑本体攻击力和附魔伤害修正
+- 命中后会触发附魔后攻击效果结算，并消耗参与本次攻击的飞剑
+- 飞行满 `60` 秒后会实体化为 `ThrownTrident`，进入原版三叉戟投掷物状态并坠地
+
 ### 攻击限制
 
 - 持有带 `御剑飞行` 的剑时，实体近战攻击被禁用
@@ -44,19 +59,25 @@
 核心模块：
 
 - [FJModeMod.java](C:/Users/jed/FJmode/src/main/java/com/fjmode/FJModeMod.java)
-  通用入口，负责注册附魔、网络和飞行控制。
+  通用入口，负责注册附魔、网络、御剑飞行与万剑归宗控制器。
 
 - [FJModeModClient.java](C:/Users/jed/FJmode/src/client/java/com/fjmode/FJModeModClient.java)
-  客户端入口，负责注册飞行输入监听。
+  客户端入口，负责注册飞行输入监听和万剑归宗客户端渲染/同步接收。
 
 - [ModEnchantments.java](C:/Users/jed/FJmode/src/main/java/com/fjmode/enchantment/ModEnchantments.java)
-  附魔资源键定义，当前包含 `sword_flight`。
+  附魔资源键定义，当前包含 `sword_flight` 与 `myriad_swords_return`。
 
 - [SwordFlightController.java](C:/Users/jed/FJmode/src/main/java/com/fjmode/flight/SwordFlightController.java)
   服务端飞行控制核心，负责飞行判定、滑翔速度更新、助推、耐久和饱食度消耗。
 
+- [MyriadSwordsController.java](C:/Users/jed/FJmode/src/main/java/com/fjmode/flight/MyriadSwordsController.java)
+  万剑归宗服务端核心，负责蓄力发射、飞剑池管理、Boids 运动、目标锁定、追踪攻击、伤害结算与寿命结束后的实体化。
+
 - [SwordFlightClient.java](C:/Users/jed/FJmode/src/client/java/com/fjmode/flight/SwordFlightClient.java)
   客户端每 tick 监听冲刺键，并在飞行时发送助推包。
+
+- [MyriadSwordsClient.java](C:/Users/jed/FJmode/src/client/java/com/fjmode/flight/MyriadSwordsClient.java)
+  客户端接收飞剑快照并在世界中渲染虚拟飞剑。
 
 - [ModNetworking.java](C:/Users/jed/FJmode/src/main/java/com/fjmode/network/ModNetworking.java)
   自定义 Payload 注册与服务端接收器绑定。
@@ -64,15 +85,20 @@
 - [SwordFlightBoostPayload.java](C:/Users/jed/FJmode/src/main/java/com/fjmode/network/SwordFlightBoostPayload.java)
   御剑飞行助推的 C2S 数据包。
 
+- [MyriadSwordsSyncPayload.java](C:/Users/jed/FJmode/src/main/java/com/fjmode/network/MyriadSwordsSyncPayload.java)
+  万剑归宗飞剑状态同步的 S2C 数据包。
+
 ## 数据与资源
 
 附魔定义：
 
 - [data/fjmode/enchantment/sword_flight.json](C:/Users/jed/FJmode/src/main/resources/data/fjmode/enchantment/sword_flight.json)
+- [data/fjmode/enchantment/myriad_swords_return.json](C:/Users/jed/FJmode/src/main/resources/data/fjmode/enchantment/myriad_swords_return.json)
 
 附魔适用物品标签：
 
 - [data/fjmode/tags/item/enchantable/sword_flight.json](C:/Users/jed/FJmode/src/main/resources/data/fjmode/tags/item/enchantable/sword_flight.json)
+- [data/fjmode/tags/item/enchantable/myriad_swords_return.json](C:/Users/jed/FJmode/src/main/resources/data/fjmode/tags/item/enchantable/myriad_swords_return.json)
 
 附魔可见性标签：
 
@@ -93,6 +119,7 @@
 - [SwordFlightSwordLayer.java](C:/Users/jed/FJmode/src/client/java/com/fjmode/client/render/SwordFlightSwordLayer.java)
 - [AvatarRenderStateMixin.java](C:/Users/jed/FJmode/src/client/java/com/fjmode/mixin/client/AvatarRenderStateMixin.java)
 - [MinecraftAttackMixin.java](C:/Users/jed/FJmode/src/client/java/com/fjmode/mixin/client/MinecraftAttackMixin.java)
+- [MyriadSwordsClient.java](C:/Users/jed/FJmode/src/client/java/com/fjmode/flight/MyriadSwordsClient.java)
 
 当前渲染行为：
 
@@ -100,6 +127,8 @@
 - 飞行时隐藏主手显示，避免手里和脚下同时出现同一把剑
 - 在玩家脚部中线附近渲染主手物品同款剑模型
 - 剑模型会跟随飞行朝向旋转，并按视角俯仰同步上扬或下压
+- 万剑归宗的虚拟飞剑通过世界渲染事件直接绘制，不创建客户端实体
+- 客户端根据服务端同步的位置和速度快照插值渲染飞剑群
 
 ## Mixin 配置
 
@@ -115,6 +144,7 @@
 
 - 禁止附魔剑近战攻击与蓄力横扫
 - 客户端拦截附魔剑实体攻击发起
+- 给带 `万剑归宗` 的剑补充三叉戟式蓄力/释放行为
 - 向渲染状态挂接御剑飞行数据
 - 给玩家渲染器添加御剑模型层
 - 强制飞行姿态为站立
@@ -143,6 +173,14 @@
 - 运行时控制逻辑放 `flight` / `network` / `enchantment`
 - 侵入式改动放 `mixin`
 - 客户端专用渲染逻辑放 `src/client/java`
+
+### 万剑归宗实现说明
+
+- 虚拟飞剑存在于服务端内存，不是原版实体，因此默认不参与方块碰撞，也不会自行触发原版投掷物命中流程
+- 飞剑追踪目标和伤害结算都在服务端完成，客户端只负责表现
+- 当前目标设定方式是：玩家使用附魔剑左键命中一个实体后，将其登记为该玩家飞剑池的当前目标
+- 当前伤害规则是：参与本次命中的所有飞剑，逐把统计剑本体攻击力与附魔伤害修正，再将总和除以 `3`
+- 当前寿命结束时会把虚拟飞剑转换为 `ThrownTrident`，因此状态行为像三叉戟，但外观仍取决于后续是否接自定义实体渲染
 
 ## 构建与运行
 

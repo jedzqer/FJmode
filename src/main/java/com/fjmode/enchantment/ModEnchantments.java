@@ -8,6 +8,11 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.enchantment.Enchantment;
 
 public final class ModEnchantments {
+	public static final ResourceKey<Enchantment> MYRIAD_SWORDS_RETURN = ResourceKey.create(
+		Registries.ENCHANTMENT,
+		Identifier.fromNamespaceAndPath(FJModeMod.MOD_ID, "myriad_swords_return")
+	);
+
 	public static final ResourceKey<Enchantment> SWORD_FLIGHT = ResourceKey.create(
 		Registries.ENCHANTMENT,
 		Identifier.fromNamespaceAndPath(FJModeMod.MOD_ID, "sword_flight")
@@ -18,5 +23,16 @@ public final class ModEnchantments {
 
 	public static Holder.Reference<Enchantment> swordFlight(net.minecraft.core.RegistryAccess registryAccess) {
 		return registryAccess.lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(SWORD_FLIGHT);
+	}
+
+	public static Holder.Reference<Enchantment> myriadSwordsReturn(net.minecraft.core.RegistryAccess registryAccess) {
+		return registryAccess.lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(MYRIAD_SWORDS_RETURN);
+	}
+
+	public static int getMyriadSwordsReturnLevel(net.minecraft.world.entity.LivingEntity entity) {
+		return net.minecraft.world.item.enchantment.EnchantmentHelper.getItemEnchantmentLevel(
+			myriadSwordsReturn(entity.registryAccess()),
+			entity.getMainHandItem()
+		);
 	}
 }
