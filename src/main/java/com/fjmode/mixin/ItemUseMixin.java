@@ -5,6 +5,7 @@ import com.fjmode.flight.MyriadSwordsController;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -29,8 +30,24 @@ public class ItemUseMixin {
 	@Inject(method = "getUseAnimation", at = @At("HEAD"), cancellable = true)
 	private void fjmode$useSpearAnimation(ItemStack stack, CallbackInfoReturnable<ItemUseAnimation> cir) {
 		if (hasMyriadEnchant(stack)) {
-			cir.setReturnValue(ItemUseAnimation.SPEAR);
+			cir.setReturnValue(ItemUseAnimation.TRIDENT);
 		}
+	}
+
+	@Inject(method = "use", at = @At("HEAD"), cancellable = true)
+	private void fjmode$useMyriadSword(Level level, Player player, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
+		ItemStack stack = player.getItemInHand(hand);
+		if (!MyriadSwordsController.isMyriadSword(stack, player)) {
+			return;
+		}
+
+		if (stack.nextDamageWillBreak()) {
+			cir.setReturnValue(InteractionResult.FAIL);
+			return;
+		}
+
+		player.startUsingItem(hand);
+		cir.setReturnValue(InteractionResult.CONSUME);
 	}
 
 	@Inject(method = "getUseDuration", at = @At("HEAD"), cancellable = true)

@@ -1,5 +1,6 @@
 package com.fjmode.mixin;
 
+import com.fjmode.flight.MyriadSwordsController;
 import com.fjmode.flight.SwordFlightController;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -14,7 +15,12 @@ public class PlayerAttackMixin {
 	@Inject(method = "attack", at = @At("HEAD"), cancellable = true)
 	private void fjmode$preventSwordFlightAttacks(Entity target, CallbackInfo ci) {
 		Player player = (Player) (Object) this;
+		boolean assignedTarget = MyriadSwordsController.tryAssignTarget(player, target);
 		if (SwordFlightController.hasSwordFlightWeapon(player)) {
+			if (assignedTarget || MyriadSwordsController.hasActiveSwords(player)) {
+				ci.cancel();
+				return;
+			}
 			ci.cancel();
 		}
 	}

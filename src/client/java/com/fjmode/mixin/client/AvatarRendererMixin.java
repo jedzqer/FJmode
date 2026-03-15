@@ -1,6 +1,7 @@
 package com.fjmode.mixin.client;
 
 import com.fjmode.client.render.SwordFlightRenderStateAccess;
+import com.fjmode.flight.MyriadSwordsClient;
 import com.fjmode.client.render.SwordFlightSwordLayer;
 import com.fjmode.flight.SwordFlightController;
 import net.minecraft.client.entity.ClientAvatarEntity;
@@ -28,6 +29,7 @@ public abstract class AvatarRendererMixin<AvatarlikeEntity extends Avatar & Clie
 		SwordFlightRenderStateAccess swordFlightState = (SwordFlightRenderStateAccess) renderState;
 		swordFlightState.fjmode$getSwordFlightSwordState().clear();
 		boolean active = SwordFlightController.isSwordFlightActive(entity);
+		boolean myriadActive = MyriadSwordsClient.hasActiveSwords(entity.getUUID());
 		swordFlightState.fjmode$setSwordFlightActive(active);
 
 		if (active) {
@@ -38,6 +40,9 @@ public abstract class AvatarRendererMixin<AvatarlikeEntity extends Avatar & Clie
 				entity
 			);
 
+		}
+
+		if (active || myriadActive) {
 			if (renderState.mainArm == HumanoidArm.RIGHT) {
 				renderState.rightHandItemState.clear();
 				renderState.rightHandItemStack = ItemStack.EMPTY;

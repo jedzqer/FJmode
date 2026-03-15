@@ -1,5 +1,7 @@
 package com.fjmode.mixin.client;
 
+import com.fjmode.flight.MyriadSwordsClient;
+import com.fjmode.flight.MyriadSwordsController;
 import com.fjmode.flight.SwordFlightController;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -24,7 +26,13 @@ public class MinecraftAttackMixin {
 			return;
 		}
 
-		if (this.hitResult.getType() == HitResult.Type.ENTITY && SwordFlightController.hasSwordFlightWeapon(this.player)) {
+		if (this.hitResult.getType() != HitResult.Type.ENTITY) {
+			return;
+		}
+
+		boolean hasMyriadTargeting = MyriadSwordsController.isMyriadSword(this.player.getMainHandItem(), this.player)
+			&& MyriadSwordsClient.hasActiveSwords(this.player.getUUID());
+		if (SwordFlightController.hasSwordFlightWeapon(this.player) && !hasMyriadTargeting) {
 			cir.setReturnValue(false);
 		}
 	}

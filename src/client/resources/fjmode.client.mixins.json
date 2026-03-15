@@ -5,6 +5,7 @@
 	"client": [
 		"AvatarRenderStateMixin",
 		"AvatarRendererMixin",
+		"ItemInHandRendererMixin",
 		"LivingEntityRendererAccessor",
 		"MinecraftAttackMixin",
 		"PlayerModelMixin"

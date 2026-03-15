@@ -3,6 +3,7 @@ package com.fjmode.network;
 import com.fjmode.FJModeMod;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -34,6 +35,7 @@ public record MyriadSwordsSyncPayload(List<SwordSnapshot> swords) implements Cus
 	}
 
 	public record SwordSnapshot(
+		UUID ownerId,
 		int id,
 		ItemStack stack,
 		double x,
@@ -45,6 +47,7 @@ public record MyriadSwordsSyncPayload(List<SwordSnapshot> swords) implements Cus
 	) {
 		public static final StreamCodec<RegistryFriendlyByteBuf, SwordSnapshot> STREAM_CODEC = StreamCodec.of(
 			(buf, snapshot) -> {
+				buf.writeUUID(snapshot.ownerId);
 				buf.writeVarInt(snapshot.id);
 				ItemStack.STREAM_CODEC.encode(buf, snapshot.stack);
 				buf.writeDouble(snapshot.x);
@@ -55,6 +58,7 @@ public record MyriadSwordsSyncPayload(List<SwordSnapshot> swords) implements Cus
 				buf.writeDouble(snapshot.velocityZ);
 			},
 			buf -> new SwordSnapshot(
+				buf.readUUID(),
 				buf.readVarInt(),
 				ItemStack.STREAM_CODEC.decode(buf),
 				buf.readDouble(),

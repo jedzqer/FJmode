@@ -4,8 +4,11 @@ import com.fjmode.network.MyriadSwordsSyncPayload;
 import com.fjmode.network.MyriadSwordsSyncPayload.SwordSnapshot;
 import com.mojang.blaze3d.vertex.PoseStack;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
@@ -19,7 +22,8 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 
 public final class MyriadSwordsClient {
-	private static final Map<Integer, ClientSwordState> ACTIVE_SWORDS = new HashMap<>();
+	private static final Map<SwordKey, ClientSwordState> ACTIVE_SWORDS = new HashMap<>();
+	private static final Set<UUID> OWNERS_WITH_ACTIVE_SWORDS = new HashSet<>();
 	private static boolean networkingRegistered;
 
 	private MyriadSwordsClient() {
@@ -38,9 +42,11 @@ public final class MyriadSwordsClient {
 	}
 
 	private static void applySnapshot(List<SwordSnapshot> swords) {
-		Map<Integer, ClientSwordState> next = new HashMap<>(swords.size());
+		Map<SwordKey, ClientSwordState> next = new HashMap<>(swords.size());
+		Set<UUID> nextOwners = new HashSet<>();
 		for (SwordSnapshot snapshot : swords) {
-			ClientSwordState previous = ACTIVE_SWORDS.get(snapshot.id());
+			SwordKey key = new SwordKey(snapshot.ownerId(), snapshot.id());
+			ClientSwordState previous = ACTIVE_SWORDS.get(key);
 			ClientSwordState current = previous == null ? new ClientSwordState() : previous;
 			current.previousPosition = current.position;
 			current.position = new Vec3(snapshot.x(), snapshot.y(), snapshot.z());
@@ -54,10 +60,17 @@ public final class MyriadSwordsClient {
 				ItemDisplayContext.FIXED,
 				client.player
 			);
-			next.put(snapshot.id(), current);
+			next.put(key, current);
+			nextOwners.add(snapshot.ownerId());
 		}
 		ACTIVE_SWORDS.clear();
 		ACTIVE_SWORDS.putAll(next);
+		OWNERS_WITH_ACTIVE_SWORDS.clear();
+		OWNERS_WITH_ACTIVE_SWORDS.addAll(nextOwners);
+	}
+
+	public static boolean hasActiveSwords(UUID ownerId) {
+		return OWNERS_WITH_ACTIVE_SWORDS.contains(ownerId);
 	}
 
 	private static void renderSwords(WorldRenderContext context) {
@@ -91,5 +104,8 @@ public final class MyriadSwordsClient {
 		private Vec3 previousPosition = Vec3.ZERO;
 		private Vec3 position = Vec3.ZERO;
 		private Vec3 velocity = Vec3.ZERO;
+	}
+
+	private record SwordKey(UUID ownerId, int swordId) {
 	}
 }
