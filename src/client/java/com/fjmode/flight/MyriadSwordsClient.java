@@ -24,6 +24,8 @@ import org.joml.Quaternionf;
 public final class MyriadSwordsClient {
 	private static final Map<SwordKey, ClientSwordState> ACTIVE_SWORDS = new HashMap<>();
 	private static final Set<UUID> OWNERS_WITH_ACTIVE_SWORDS = new HashSet<>();
+	private static final double POSITION_SMOOTHING = 0.38D;
+	private static final double VELOCITY_SMOOTHING = 0.3D;
 	private static boolean networkingRegistered;
 
 	private MyriadSwordsClient() {
@@ -48,18 +50,23 @@ public final class MyriadSwordsClient {
 			SwordKey key = new SwordKey(snapshot.ownerId(), snapshot.id());
 			ClientSwordState previous = ACTIVE_SWORDS.get(key);
 			ClientSwordState current = previous == null ? new ClientSwordState() : previous;
-			current.previousPosition = current.position;
 			current.position = new Vec3(snapshot.x(), snapshot.y(), snapshot.z());
 			current.velocity = new Vec3(snapshot.velocityX(), snapshot.velocityY(), snapshot.velocityZ());
 			current.renderState.clear();
 			Minecraft client = Minecraft.getInstance();
-			current.renderState.clear();
 			client.getItemModelResolver().updateForLiving(
 				current.renderState,
 				snapshot.stack(),
 				ItemDisplayContext.FIXED,
 				client.player
 			);
+			if (!current.initialized) {
+				current.renderPosition = current.position;
+				if (current.velocity.lengthSqr() > 1.0E-4D) {
+					current.renderVelocity = current.velocity.normalize();
+				}
+				current.initialized = true;
+			}
 			next.put(key, current);
 			nextOwners.add(snapshot.ownerId());
 		}
@@ -82,16 +89,25 @@ public final class MyriadSwordsClient {
 		Vec3 cameraPos = context.worldState().cameraRenderState.pos;
 		PoseStack poseStack = context.matrices();
 		for (ClientSwordState state : ACTIVE_SWORDS.values()) {
-			Vec3 interpolated = state.previousPosition.lerp(state.position, client.getDeltaTracker().getGameTimeDeltaPartialTick(false));
-			Vec3 velocity = state.velocity.lengthSqr() > 1.0E-4D ? state.velocity.normalize() : new Vec3(0.0D, 0.0D, 1.0D);
-			float yaw = (float) Math.toDegrees(Math.atan2(velocity.x, velocity.z));
-			float pitch = (float) -Math.toDegrees(Math.atan2(velocity.y, Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z)));
-			int packedLight = LevelRenderer.getLightColor(client.level, BlockPos.containing(interpolated));
+			state.renderPosition = state.renderPosition.lerp(state.position, POSITION_SMOOTHING);
+			Vec3 targetRenderVelocity = state.velocity.lengthSqr() > 1.0E-4D ? state.velocity.normalize() : state.renderVelocity;
+			if (targetRenderVelocity.lengthSqr() <= 1.0E-4D) {
+				targetRenderVelocity = new Vec3(0.0D, 0.0D, 1.0D);
+			}
+			state.renderVelocity = state.renderVelocity.lerp(targetRenderVelocity, VELOCITY_SMOOTHING).normalize();
+
+			float yaw = (float) Math.toDegrees(Math.atan2(state.renderVelocity.x, state.renderVelocity.z));
+			float horizontalSpeed = (float) Math.sqrt(
+				state.renderVelocity.x * state.renderVelocity.x + state.renderVelocity.z * state.renderVelocity.z
+			);
+			float pitch = (float) -Math.toDegrees(Math.atan2(state.renderVelocity.y, horizontalSpeed));
+			int packedLight = LevelRenderer.getLightColor(client.level, BlockPos.containing(state.renderPosition));
 
 			poseStack.pushPose();
-			poseStack.translate(interpolated.x - cameraPos.x, interpolated.y - cameraPos.y, interpolated.z - cameraPos.z);
+			poseStack.translate(state.renderPosition.x - cameraPos.x, state.renderPosition.y - cameraPos.y, state.renderPosition.z - cameraPos.z);
 			poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(180.0F - yaw)));
 			poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(pitch + 90.0F)));
+			poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(-45.0F)));
 			poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(20.0F * Mth.sin(client.level.getGameTime() * 0.2F))));
 			poseStack.scale(1.35F, 1.35F, 1.35F);
 			state.renderState.submit(poseStack, context.commandQueue(), packedLight, 0, 0);
@@ -101,9 +117,11 @@ public final class MyriadSwordsClient {
 
 	private static final class ClientSwordState {
 		private final ItemStackRenderState renderState = new ItemStackRenderState();
-		private Vec3 previousPosition = Vec3.ZERO;
 		private Vec3 position = Vec3.ZERO;
 		private Vec3 velocity = Vec3.ZERO;
+		private Vec3 renderPosition = Vec3.ZERO;
+		private Vec3 renderVelocity = new Vec3(0.0D, 0.0D, 1.0D);
+		private boolean initialized;
 	}
 
 	private record SwordKey(UUID ownerId, int swordId) {

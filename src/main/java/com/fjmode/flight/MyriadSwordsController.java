@@ -14,6 +14,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -43,6 +44,7 @@ public final class MyriadSwordsController {
 	private static final int MAX_NEIGHBORS = 8;
 	private static final int LIFETIME_TICKS = 20 * 60;
 	private static final int STRIKE_COOLDOWN_TICKS = 10;
+	private static final int TARGET_ASSIGN_COOLDOWN_TICKS = 20;
 	private static final int QUICK_GATHER_TICKS = 12;
 	private static final int RETURN_DELAY_TICKS = 10;
 	private static final double LAUNCH_SPEED = 0.7D;
@@ -77,6 +79,9 @@ public final class MyriadSwordsController {
 	public static void register() {
 		AttackEntityCallback.EVENT.register(MyriadSwordsController::markAttackTarget);
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
+			for (SwordPool pool : POOLS.values()) {
+				pool.tickServer(server);
+			}
 			for (ServerLevel level : server.getAllLevels()) {
 				tickLevel(level);
 			}
@@ -143,6 +148,10 @@ public final class MyriadSwordsController {
 			return false;
 		}
 
+		if (!pool.canAssignTarget()) {
+			return false;
+		}
+
 		pool.setTarget(entity);
 		return true;
 	}
@@ -184,7 +193,6 @@ public final class MyriadSwordsController {
 	private static void tickLevel(ServerLevel level) {
 		List<VirtualSword> active = new ArrayList<>();
 		for (SwordPool pool : POOLS.values()) {
-			pool.tickTarget(level);
 			pool.tryStrikeTarget(level);
 		}
 
@@ -341,6 +349,7 @@ public final class MyriadSwordsController {
 		private int activeCount;
 		private UUID targetId;
 		private int strikeCooldownTicks;
+		private int targetAssignCooldownTicks;
 
 		private VirtualSword acquire(int maxCapacity) {
 			int capacity = Math.min(maxCapacity, this.swords.length);
@@ -372,6 +381,7 @@ public final class MyriadSwordsController {
 
 		private void setTarget(Entity target) {
 			this.targetId = target.getUUID();
+			this.targetAssignCooldownTicks = TARGET_ASSIGN_COOLDOWN_TICKS;
 		}
 
 		private boolean hasActiveSwords() {
@@ -383,19 +393,40 @@ public final class MyriadSwordsController {
 			return false;
 		}
 
-		private void tickTarget(ServerLevel level) {
+		private void tickServer(MinecraftServer server) {
 			if (this.strikeCooldownTicks > 0) {
 				this.strikeCooldownTicks--;
 			}
+			if (this.targetAssignCooldownTicks > 0) {
+				this.targetAssignCooldownTicks--;
+			}
 
-			Entity target = getTargetEntity(level);
+			Entity target = getTargetEntity(server);
 			if (target == null || !target.isAlive()) {
 				this.targetId = null;
 			}
 		}
 
+		private boolean canAssignTarget() {
+			return this.targetAssignCooldownTicks <= 0;
+		}
+
 		private Entity getTargetEntity(ServerLevel level) {
-			return this.targetId == null ? null : level.getEntity(this.targetId);
+			return getTargetEntity(level.getServer());
+		}
+
+		private Entity getTargetEntity(MinecraftServer server) {
+			if (this.targetId == null) {
+				return null;
+			}
+
+			for (ServerLevel serverLevel : server.getAllLevels()) {
+				Entity entity = serverLevel.getEntity(this.targetId);
+				if (entity != null) {
+					return entity;
+				}
+			}
+			return null;
 		}
 
 		private void tryStrikeTarget(ServerLevel level) {
@@ -403,9 +434,13 @@ public final class MyriadSwordsController {
 				return;
 			}
 
-			Entity target = getTargetEntity(level);
+			Entity target = getTargetEntity(level.getServer());
 			if (target == null || !target.isAlive()) {
 				this.targetId = null;
+				return;
+			}
+
+			if (target.level() != level) {
 				return;
 			}
 
@@ -594,15 +629,18 @@ public final class MyriadSwordsController {
 		}
 
 		private void reboundFromStrike(Vec3 targetCenter) {
-			Vec3 away = this.position.subtract(targetCenter);
-			if (away.lengthSqr() <= 1.0E-4D) {
-				away = this.forward.lengthSqr() > 1.0E-4D ? this.forward : new Vec3(0.0D, 1.0D, 0.0D);
+			Vec3 carryThrough = this.velocity.lengthSqr() > 1.0E-4D ? this.velocity.normalize() : this.forward;
+			if (carryThrough.lengthSqr() <= 1.0E-4D) {
+				carryThrough = this.position.subtract(targetCenter);
+			}
+			if (carryThrough.lengthSqr() <= 1.0E-4D) {
+				carryThrough = new Vec3(0.0D, 1.0D, 0.0D);
 			}
 
-			Vec3 rebound = away.normalize().add(0.0D, 0.45D, 0.0D).normalize().scale(1.15D);
+			Vec3 rebound = carryThrough.normalize().add(0.0D, 0.28D, 0.0D).normalize().scale(1.2D);
 			this.velocity = rebound;
 			this.forward = rebound.normalize();
-			this.position = targetCenter.add(this.forward.scale(1.2D));
+			this.position = targetCenter.add(carryThrough.normalize().scale(1.45D));
 			this.returnDelayTicks = RETURN_DELAY_TICKS;
 			this.returningToOrbit = true;
 		}
