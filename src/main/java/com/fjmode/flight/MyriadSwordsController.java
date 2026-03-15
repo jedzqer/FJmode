@@ -1,13 +1,16 @@
 package com.fjmode.flight;
 
 import com.fjmode.enchantment.ModEnchantments;
+import com.fjmode.entity.GroundedSwordEntity;
 import com.fjmode.network.MyriadSwordsSyncPayload;
 import com.fjmode.network.MyriadSwordsSyncPayload.SwordSnapshot;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -27,7 +30,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
@@ -36,6 +38,7 @@ import net.minecraft.world.phys.Vec3;
 
 public final class MyriadSwordsController {
 	private static final Map<UUID, SwordPool> POOLS = new HashMap<>();
+	private static boolean shutdownSavePending;
 	private static final int MIN_CHARGE_TICKS = 10;
 	private static final int BASE_POOL_SIZE = 8;
 	private static final int EXTRA_POOL_SIZE_PER_LEVEL = 4;
@@ -86,7 +89,30 @@ public final class MyriadSwordsController {
 				tickLevel(level);
 			}
 		});
-		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> POOLS.remove(handler.player.getUUID()));
+		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> entityizeAndRemovePool(handler.player.getUUID()));
+		ServerLifecycleEvents.SERVER_STOPPING.register(server -> shutdownSavePending = true);
+		ServerLifecycleEvents.BEFORE_SAVE.register((server, flush, force) -> {
+			if (shutdownSavePending && !POOLS.isEmpty()) {
+				entityizeAndClearAllPools(server);
+			}
+		});
+		ServerLifecycleEvents.SERVER_STOPPED.register(server -> shutdownSavePending = false);
+	}
+
+	private static void entityizeAndRemovePool(UUID ownerId) {
+		SwordPool pool = POOLS.remove(ownerId);
+		if (pool != null) {
+			pool.entityizeAllActiveSwords();
+		}
+	}
+
+	private static void entityizeAndClearAllPools(MinecraftServer server) {
+		Iterator<SwordPool> iterator = POOLS.values().iterator();
+		while (iterator.hasNext()) {
+			SwordPool pool = iterator.next();
+			pool.entityizeAllActiveSwords();
+			iterator.remove();
+		}
 	}
 
 	public static boolean isMyriadSword(ItemStack stack, Player player) {
@@ -528,6 +554,18 @@ public final class MyriadSwordsController {
 			}
 			return false;
 		}
+
+		private void entityizeAllActiveSwords() {
+			for (VirtualSword sword : this.swords) {
+				if (sword != null && sword.active) {
+					sword.entityizeAndDrop();
+				}
+			}
+			this.targetId = null;
+			this.awaitingReturn = false;
+			this.strikeCooldownTicks = 0;
+			this.activeCount = 0;
+		}
 	}
 
 	private static final class VirtualSword {
@@ -593,12 +631,11 @@ public final class MyriadSwordsController {
 		}
 
 		private void entityizeAndDrop() {
-			ItemEntity itemEntity = new ItemEntity(this.level, this.position.x, this.position.y, this.position.z, this.visualStack.copy());
+			GroundedSwordEntity itemEntity = new GroundedSwordEntity(this.level, this.position.x, this.position.y, this.position.z, this.visualStack.copy());
 			Vec3 launchVelocity = this.velocity.lengthSqr() > 1.0E-4D
 				? this.velocity.normalize().scale(Math.max(0.4D, this.velocity.length() * 0.7D))
 				: new Vec3(0.0D, -0.2D, 0.0D);
 			itemEntity.setDeltaMovement(launchVelocity);
-			itemEntity.setPickUpDelay(10);
 			this.level.addFreshEntity(itemEntity);
 			deactivate();
 		}

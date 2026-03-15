@@ -1,6 +1,7 @@
 package com.fjmode;
 
 import com.fjmode.enchantment.effect.ModEnchantmentEffects;
+import com.fjmode.entity.ModEntities;
 import com.fjmode.flight.MyriadSwordsController;
 import com.fjmode.flight.SwordFlightController;
 import com.fjmode.network.ModNetworking;
@@ -15,6 +16,7 @@ public class FJModeMod implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		ModEnchantmentEffects.register();
+		ModEntities.register();
 		ModNetworking.register();
 		MyriadSwordsController.register();
 		SwordFlightController.register();
