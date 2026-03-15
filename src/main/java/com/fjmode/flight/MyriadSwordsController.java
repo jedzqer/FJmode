@@ -6,6 +6,7 @@ import com.fjmode.network.MyriadSwordsSyncPayload;
 import com.fjmode.network.MyriadSwordsSyncPayload.SwordSnapshot;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -53,17 +54,17 @@ public final class MyriadSwordsController {
 	private static final double TRACKING_MAX_SPEED = 1.8D;
 	private static final double BOID_NEIGHBOR_RANGE = 6.6D;
 	private static final double BOID_SEPARATION_RANGE = 1.15D;
-	private static final double SEPARATION_WEIGHT = 0.13D;
-	private static final double ALIGNMENT_WEIGHT = 0.075D;
-	private static final double COHESION_WEIGHT = 0.07D;
-	private static final double ORBIT_PULL_WEIGHT = 0.1D;
+	private static final double SEPARATION_WEIGHT = 0.115D;
+	private static final double ALIGNMENT_WEIGHT = 0.07D;
+	private static final double COHESION_WEIGHT = 0.068D;
+	private static final double ORBIT_PULL_WEIGHT = 0.092D;
 	private static final double RETURN_TO_ORBIT_WEIGHT = 0.32D;
 	private static final double QUICK_GATHER_WEIGHT = 0.34D;
-	private static final double ORBIT_TANGENT_WEIGHT = 0.09D;
+	private static final double ORBIT_TANGENT_WEIGHT = 0.082D;
 	private static final double TARGET_WEIGHT = 0.52D;
-	private static final double VERTICAL_CORRECTION_WEIGHT = 0.22D;
+	private static final double VERTICAL_CORRECTION_WEIGHT = 0.18D;
 	private static final double TRACKING_VERTICAL_WEIGHT = 0.65D;
-	private static final double DRAG = 0.94D;
+	private static final double DRAG = 0.948D;
 	private static final double TRACKING_DRAG = 0.985D;
 	private static final double TARGET_HIT_RANGE = 1.6D;
 	private static final double TRACKING_FORCE_STEP = 1.8D;
@@ -71,10 +72,11 @@ public final class MyriadSwordsController {
 	private static final double RETURN_COMPLETE_DISTANCE = 2.4D;
 	private static final double RETURN_ORBIT_BAND_TOLERANCE = 2.6D;
 	private static final double RETURN_ORBIT_VERTICAL_TOLERANCE = 2.8D;
-	private static final double ORBIT_RADIUS = 8.25D;
-	private static final double ORBIT_RADIUS_STEP = 1.35D;
-	private static final double ORBIT_HEIGHT = 4.2D;
-	private static final double ORBIT_VERTICAL_WAVE = 1.8D;
+	private static final double ORBIT_RADIUS = 9.75D;
+	private static final double ORBIT_RADIUS_STEP = 1.8D;
+	private static final double ORBIT_HEIGHT = 5.3D;
+	private static final double ORBIT_VERTICAL_WAVE = 2.9D;
+	private static final double ORBIT_VERTICAL_LAYER_STEP = 0.95D;
 
 	private MyriadSwordsController() {
 	}
@@ -239,12 +241,18 @@ public final class MyriadSwordsController {
 	}
 
 	private static List<Vec3> computeBoidVelocities(List<VirtualSword> active) {
+		Map<SwordPool, FlightContext> flightContexts = new IdentityHashMap<>();
+		for (VirtualSword sword : active) {
+			flightContexts.computeIfAbsent(sword.pool, ignored -> FlightContext.create(sword));
+		}
+
 		List<Vec3> velocities = new ArrayList<>(active.size());
 		for (int i = 0; i < active.size(); i++) {
 			VirtualSword sword = active.get(i);
-			Entity target = sword.pool.getTargetEntity(sword.level);
-			boolean trackingTarget = target != null;
-			ServerPlayer owner = sword.owner(sword.level);
+			FlightContext flightContext = flightContexts.get(sword.pool);
+			Entity target = flightContext.target();
+			boolean trackingTarget = flightContext.trackingTarget();
+			ServerPlayer owner = flightContext.owner();
 			Vec3 separation = Vec3.ZERO;
 			Vec3 alignment = Vec3.ZERO;
 			Vec3 cohesion = Vec3.ZERO;
@@ -277,7 +285,7 @@ public final class MyriadSwordsController {
 			double drag = trackingTarget ? TRACKING_DRAG : DRAG;
 
 			if (trackingTarget) {
-				Vec3 targetPoint = target.getBoundingBox().getCenter().add(target.getDeltaMovement().scale(6.0D));
+				Vec3 targetPoint = flightContext.targetPoint();
 				Vec3 toTarget = targetPoint.subtract(sword.position);
 				if (toTarget.lengthSqr() > 1.0E-4D) {
 					Vec3 directVelocity = toTarget.normalize().scale(speedCap);
@@ -430,7 +438,7 @@ public final class MyriadSwordsController {
 				this.targetId = null;
 			}
 
-			if (this.awaitingReturn && this.targetId == null && !hasSwordReturningToOrbit()) {
+			if (this.awaitingReturn && this.targetId == null && hasSwordReadyForRetarget()) {
 				this.awaitingReturn = false;
 			}
 		}
@@ -546,9 +554,9 @@ public final class MyriadSwordsController {
 			return Math.max(0.0F, damage);
 		}
 
-		private boolean hasSwordReturningToOrbit() {
+		private boolean hasSwordReadyForRetarget() {
 			for (VirtualSword sword : this.swords) {
-				if (sword != null && sword.active && sword.returningToOrbit) {
+				if (sword != null && sword.active && !sword.returningToOrbit && sword.returnDelayTicks <= 0) {
 					return true;
 				}
 			}
@@ -611,8 +619,9 @@ public final class MyriadSwordsController {
 			double radius = ORBIT_RADIUS + (this.poolIndex % 5) * ORBIT_RADIUS_STEP;
 			Vec3 center = computeOrbitCenter(owner);
 			Vec3 ownerDrift = owner.getDeltaMovement().scale(1.3D);
+			double verticalLayerOffset = ((this.poolIndex % 4) - 1.5D) * ORBIT_VERTICAL_LAYER_STEP;
 			double verticalWave = Math.sin((this.level.getGameTime() + this.poolIndex * 5) * 0.16D) * ORBIT_VERTICAL_WAVE;
-			return center.add(Math.cos(angle) * radius, verticalWave, Math.sin(angle) * radius).add(ownerDrift);
+			return center.add(Math.cos(angle) * radius, verticalLayerOffset + verticalWave, Math.sin(angle) * radius).add(ownerDrift);
 		}
 
 		private void tick(Vec3 nextVelocity) {
@@ -736,6 +745,21 @@ public final class MyriadSwordsController {
 			this.ownerId = null;
 			this.returnDelayTicks = 0;
 			this.returningToOrbit = false;
+		}
+	}
+
+	private record FlightContext(ServerPlayer owner, Entity target, Vec3 targetPoint) {
+		private static FlightContext create(VirtualSword sword) {
+			ServerPlayer owner = sword.owner(sword.level);
+			Entity target = sword.pool.getTargetEntity(sword.level);
+			Vec3 targetPoint = target == null
+				? Vec3.ZERO
+				: target.getBoundingBox().getCenter().add(target.getDeltaMovement().scale(6.0D));
+			return new FlightContext(owner, target, targetPoint);
+		}
+
+		private boolean trackingTarget() {
+			return this.target != null;
 		}
 	}
 

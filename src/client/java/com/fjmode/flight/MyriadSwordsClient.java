@@ -28,8 +28,8 @@ public final class MyriadSwordsClient {
 	private static final float MODEL_FORWARD_Z = 0.0F;
 	private static final Map<SwordKey, ClientSwordState> ACTIVE_SWORDS = new HashMap<>();
 	private static final Set<UUID> OWNERS_WITH_ACTIVE_SWORDS = new HashSet<>();
-	private static final double POSITION_SMOOTHING = 0.38D;
-	private static final double VELOCITY_SMOOTHING = 0.3D;
+	private static final double POSITION_SMOOTHING = 0.33D;
+	private static final double VELOCITY_SMOOTHING = 0.24D;
 	private static boolean networkingRegistered;
 
 	private MyriadSwordsClient() {
