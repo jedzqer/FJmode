@@ -20,8 +20,12 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 public final class MyriadSwordsClient {
+	private static final float MODEL_FORWARD_X = 0.0F;
+	private static final float MODEL_FORWARD_Y = 1.0F;
+	private static final float MODEL_FORWARD_Z = 0.0F;
 	private static final Map<SwordKey, ClientSwordState> ACTIVE_SWORDS = new HashMap<>();
 	private static final Set<UUID> OWNERS_WITH_ACTIVE_SWORDS = new HashSet<>();
 	private static final double POSITION_SMOOTHING = 0.38D;
@@ -96,19 +100,26 @@ public final class MyriadSwordsClient {
 			}
 			state.renderVelocity = state.renderVelocity.lerp(targetRenderVelocity, VELOCITY_SMOOTHING).normalize();
 
-			float yaw = (float) Math.toDegrees(Math.atan2(state.renderVelocity.x, state.renderVelocity.z));
-			float horizontalSpeed = (float) Math.sqrt(
-				state.renderVelocity.x * state.renderVelocity.x + state.renderVelocity.z * state.renderVelocity.z
+			Vector3f direction = new Vector3f(
+				(float) state.renderVelocity.x,
+				(float) state.renderVelocity.y,
+				(float) state.renderVelocity.z
+			).normalize();
+			Quaternionf facingRotation = new Quaternionf().rotationTo(
+				MODEL_FORWARD_X,
+				MODEL_FORWARD_Y,
+				MODEL_FORWARD_Z,
+				direction.x,
+				direction.y,
+				direction.z
 			);
-			float pitch = (float) -Math.toDegrees(Math.atan2(state.renderVelocity.y, horizontalSpeed));
+			float roll = (float) Math.toRadians(45.0F + 20.0F * Mth.sin(client.level.getGameTime() * 0.2F));
 			int packedLight = LevelRenderer.getLightColor(client.level, BlockPos.containing(state.renderPosition));
 
 			poseStack.pushPose();
 			poseStack.translate(state.renderPosition.x - cameraPos.x, state.renderPosition.y - cameraPos.y, state.renderPosition.z - cameraPos.z);
-			poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(180.0F - yaw)));
-			poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(pitch + 90.0F)));
-			poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(-45.0F)));
-			poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(20.0F * Mth.sin(client.level.getGameTime() * 0.2F))));
+			poseStack.mulPose(facingRotation);
+			poseStack.mulPose(new Quaternionf().rotationY(roll));
 			poseStack.scale(1.35F, 1.35F, 1.35F);
 			state.renderState.submit(poseStack, context.commandQueue(), packedLight, 0, 0);
 			poseStack.popPose();

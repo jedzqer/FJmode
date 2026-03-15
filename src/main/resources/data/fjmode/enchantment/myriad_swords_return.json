@@ -9,7 +9,7 @@
     "base": 36,
     "per_level_above_first": 10
   },
-  "max_level": 2,
+  "max_level": 1,
   "min_cost": {
     "base": 18,
     "per_level_above_first": 10
@@ -19,5 +19,5 @@
     "mainhand"
   ],
   "supported_items": "#fjmode:enchantable/myriad_swords_return",
-  "weight": 2
+  "weight": 7
 }

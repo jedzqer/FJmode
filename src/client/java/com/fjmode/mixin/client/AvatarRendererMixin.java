@@ -1,17 +1,14 @@
 package com.fjmode.mixin.client;
 
 import com.fjmode.client.render.SwordFlightRenderStateAccess;
-import com.fjmode.flight.MyriadSwordsClient;
 import com.fjmode.client.render.SwordFlightSwordLayer;
 import com.fjmode.flight.SwordFlightController;
 import net.minecraft.client.entity.ClientAvatarEntity;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.player.AvatarRenderer;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
-import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.Avatar;
 import net.minecraft.world.item.ItemDisplayContext;
-import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -29,7 +26,6 @@ public abstract class AvatarRendererMixin<AvatarlikeEntity extends Avatar & Clie
 		SwordFlightRenderStateAccess swordFlightState = (SwordFlightRenderStateAccess) renderState;
 		swordFlightState.fjmode$getSwordFlightSwordState().clear();
 		boolean active = SwordFlightController.isSwordFlightActive(entity);
-		boolean myriadActive = MyriadSwordsClient.hasActiveSwords(entity.getUUID());
 		swordFlightState.fjmode$setSwordFlightActive(active);
 
 		if (active) {
@@ -40,16 +36,6 @@ public abstract class AvatarRendererMixin<AvatarlikeEntity extends Avatar & Clie
 				entity
 			);
 
-		}
-
-		if (active || myriadActive) {
-			if (renderState.mainArm == HumanoidArm.RIGHT) {
-				renderState.rightHandItemState.clear();
-				renderState.rightHandItemStack = ItemStack.EMPTY;
-			} else {
-				renderState.leftHandItemState.clear();
-				renderState.leftHandItemStack = ItemStack.EMPTY;
-			}
 		}
 	}
 }
