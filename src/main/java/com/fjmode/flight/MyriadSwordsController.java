@@ -40,27 +40,36 @@ public final class MyriadSwordsController {
 	private static final int BASE_POOL_SIZE = 8;
 	private static final int EXTRA_POOL_SIZE_PER_LEVEL = 4;
 	private static final int SYNC_INTERVAL = 1;
-	private static final int MAX_NEIGHBORS = 6;
+	private static final int MAX_NEIGHBORS = 8;
 	private static final int LIFETIME_TICKS = 20 * 60;
 	private static final int STRIKE_COOLDOWN_TICKS = 10;
 	private static final int QUICK_GATHER_TICKS = 12;
+	private static final int RETURN_DELAY_TICKS = 10;
 	private static final double LAUNCH_SPEED = 0.7D;
-	private static final double MAX_SPEED = 1.15D;
-	private static final double BOID_NEIGHBOR_RANGE = 4.8D;
-	private static final double BOID_SEPARATION_RANGE = 0.85D;
-	private static final double SEPARATION_WEIGHT = 0.08D;
-	private static final double ALIGNMENT_WEIGHT = 0.04D;
-	private static final double COHESION_WEIGHT = 0.045D;
-	private static final double ORBIT_PULL_WEIGHT = 0.18D;
-	private static final double QUICK_GATHER_WEIGHT = 0.42D;
-	private static final double ORBIT_TANGENT_WEIGHT = 0.12D;
-	private static final double TARGET_WEIGHT = 0.28D;
-	private static final double DRAG = 0.92D;
+	private static final double MAX_SPEED = 1.28D;
+	private static final double TRACKING_MAX_SPEED = 2.2D;
+	private static final double BOID_NEIGHBOR_RANGE = 6.6D;
+	private static final double BOID_SEPARATION_RANGE = 1.15D;
+	private static final double SEPARATION_WEIGHT = 0.13D;
+	private static final double ALIGNMENT_WEIGHT = 0.075D;
+	private static final double COHESION_WEIGHT = 0.07D;
+	private static final double ORBIT_PULL_WEIGHT = 0.1D;
+	private static final double RETURN_TO_ORBIT_WEIGHT = 0.32D;
+	private static final double QUICK_GATHER_WEIGHT = 0.34D;
+	private static final double ORBIT_TANGENT_WEIGHT = 0.09D;
+	private static final double TARGET_WEIGHT = 0.52D;
+	private static final double VERTICAL_CORRECTION_WEIGHT = 0.22D;
+	private static final double TRACKING_VERTICAL_WEIGHT = 0.65D;
+	private static final double DRAG = 0.94D;
+	private static final double TRACKING_DRAG = 0.985D;
 	private static final double TARGET_HIT_RANGE = 1.6D;
-	private static final double ORBIT_RADIUS = 2.75D;
-	private static final double ORBIT_RADIUS_STEP = 0.45D;
-	private static final double ORBIT_HEIGHT = 1.15D;
-	private static final double ORBIT_VERTICAL_WAVE = 0.32D;
+	private static final double TRACKING_FORCE_STEP = 1.8D;
+	private static final double TRACKING_SNAP_DISTANCE = 2.8D;
+	private static final double RETURN_COMPLETE_DISTANCE = 2.4D;
+	private static final double ORBIT_RADIUS = 8.25D;
+	private static final double ORBIT_RADIUS_STEP = 1.35D;
+	private static final double ORBIT_HEIGHT = 4.2D;
+	private static final double ORBIT_VERTICAL_WAVE = 1.8D;
 
 	private MyriadSwordsController() {
 	}
@@ -104,29 +113,38 @@ public final class MyriadSwordsController {
 	}
 
 	public static boolean tryAssignTarget(Player player, Entity entity) {
-		if (!(player instanceof ServerPlayer serverPlayer) || !isMyriadSword(player.getMainHandItem(), player)) {
+		if (!(player instanceof ServerPlayer serverPlayer)) {
 			return false;
 		}
 
-		SwordPool pool = POOLS.get(serverPlayer.getUUID());
+		return assignTarget(serverPlayer, entity);
+	}
+
+	public static boolean tryAssignProjectileTarget(Entity owner, Entity entity) {
+		if (!(owner instanceof ServerPlayer serverPlayer)) {
+			return false;
+		}
+
+		return assignTarget(serverPlayer, entity);
+	}
+
+	private static InteractionResult markAttackTarget(Player player, net.minecraft.world.level.Level level, InteractionHand hand, Entity entity, net.minecraft.world.phys.EntityHitResult hitResult) {
+		if (!(player instanceof ServerPlayer serverPlayer)) {
+			return InteractionResult.PASS;
+		}
+
+		assignTarget(serverPlayer, entity);
+		return InteractionResult.PASS;
+	}
+
+	private static boolean assignTarget(ServerPlayer player, Entity entity) {
+		SwordPool pool = POOLS.get(player.getUUID());
 		if (pool == null || !pool.hasActiveSwords()) {
 			return false;
 		}
 
 		pool.setTarget(entity);
 		return true;
-	}
-
-	private static InteractionResult markAttackTarget(Player player, net.minecraft.world.level.Level level, InteractionHand hand, Entity entity, net.minecraft.world.phys.EntityHitResult hitResult) {
-		if (!(player instanceof ServerPlayer serverPlayer) || !isMyriadSword(player.getItemInHand(hand), player)) {
-			return InteractionResult.PASS;
-		}
-
-		SwordPool pool = POOLS.get(serverPlayer.getUUID());
-		if (pool != null && pool.hasActiveSwords()) {
-			pool.setTarget(entity);
-		}
-		return InteractionResult.PASS;
 	}
 
 	private static void launchSword(ServerPlayer player, ItemStack visualStack) {
@@ -166,9 +184,12 @@ public final class MyriadSwordsController {
 	private static void tickLevel(ServerLevel level) {
 		List<VirtualSword> active = new ArrayList<>();
 		for (SwordPool pool : POOLS.values()) {
-			pool.collectActive(level, active);
 			pool.tickTarget(level);
 			pool.tryStrikeTarget(level);
+		}
+
+		for (SwordPool pool : POOLS.values()) {
+			pool.collectActive(level, active);
 		}
 
 		if (!active.isEmpty()) {
@@ -218,11 +239,24 @@ public final class MyriadSwordsController {
 				}
 			}
 
-			Vec3 steering = sword.velocity.scale(DRAG);
+			double speedCap = trackingTarget ? TRACKING_MAX_SPEED : MAX_SPEED;
+			double drag = trackingTarget ? TRACKING_DRAG : DRAG;
+
+			if (trackingTarget) {
+				Vec3 targetPoint = target.getBoundingBox().getCenter().add(target.getDeltaMovement().scale(6.0D));
+				Vec3 toTarget = targetPoint.subtract(sword.position);
+				if (toTarget.lengthSqr() > 1.0E-4D) {
+					Vec3 directVelocity = toTarget.normalize().scale(speedCap);
+					velocities.add(directVelocity);
+					continue;
+				}
+			}
+
+			Vec3 steering = sword.velocity.scale(drag);
 			if (neighbors > 0) {
 				Vec3 averageVelocity = alignment.scale(1.0D / neighbors);
 				if (averageVelocity.lengthSqr() > 1.0E-4D) {
-					averageVelocity = averageVelocity.normalize().scale(MAX_SPEED);
+					averageVelocity = averageVelocity.normalize().scale(speedCap);
 				}
 				Vec3 center = cohesion.scale(1.0D / neighbors);
 				steering = steering
@@ -232,40 +266,41 @@ public final class MyriadSwordsController {
 			}
 
 			Vec3 orbitSteering = Vec3.ZERO;
-			if (!trackingTarget && owner != null) {
+			if (!trackingTarget && owner != null && !sword.isReturnDelayed()) {
 				Vec3 orbitAnchor = sword.computeOrbitAnchor(owner);
 				Vec3 toAnchor = orbitAnchor.subtract(sword.position);
 				if (toAnchor.lengthSqr() > 1.0E-4D) {
-					double gatherWeight = sword.ageTicks < QUICK_GATHER_TICKS ? QUICK_GATHER_WEIGHT : ORBIT_PULL_WEIGHT;
+					double gatherWeight = sword.returningToOrbit
+						? RETURN_TO_ORBIT_WEIGHT
+						: sword.ageTicks < QUICK_GATHER_TICKS ? QUICK_GATHER_WEIGHT : ORBIT_PULL_WEIGHT;
 					orbitSteering = orbitSteering.add(
 						toAnchor.normalize().scale(MAX_SPEED).subtract(sword.velocity).scale(gatherWeight)
 					);
+
+					if (sword.returningToOrbit && toAnchor.length() <= RETURN_COMPLETE_DISTANCE) {
+						sword.finishReturnToOrbit();
+					}
 				}
+
+				double verticalDelta = orbitAnchor.y - sword.position.y;
+				orbitSteering = orbitSteering.add(0.0D, verticalDelta * VERTICAL_CORRECTION_WEIGHT, 0.0D);
 
 				Vec3 radial = sword.position.subtract(sword.computeOrbitCenter(owner));
 				if (radial.lengthSqr() > 1.0E-4D) {
-					Vec3 tangent = new Vec3(-radial.z, 0.0D, radial.x).normalize().scale(MAX_SPEED * 0.7D);
+					double verticalBias = Math.sin((sword.level.getGameTime() + sword.poolIndex * 7) * 0.18D) * 0.55D;
+					Vec3 tangent = new Vec3(-radial.z, verticalBias, radial.x).normalize().scale(MAX_SPEED * 0.72D);
 					orbitSteering = orbitSteering.add(tangent.subtract(sword.velocity).scale(ORBIT_TANGENT_WEIGHT));
 				}
 			}
 
 			Vec3 targetSteering = orbitSteering;
-			if (trackingTarget) {
-				Vec3 targetPoint = target.getBoundingBox().getCenter();
-				Vec3 toTarget = targetPoint.subtract(sword.position);
-				if (toTarget.lengthSqr() > 1.0E-4D) {
-					targetSteering = targetSteering.add(
-						toTarget.normalize().scale(MAX_SPEED).subtract(sword.velocity).scale(TARGET_WEIGHT)
-					);
-				}
-			}
 
 			Vec3 nextVelocity = steering.add(targetSteering);
 			if (nextVelocity.lengthSqr() < 1.0E-4D) {
 				nextVelocity = sword.forward.scale(LAUNCH_SPEED);
 			}
-			if (nextVelocity.length() > MAX_SPEED) {
-				nextVelocity = nextVelocity.normalize().scale(MAX_SPEED);
+			if (nextVelocity.length() > speedCap) {
+				nextVelocity = nextVelocity.normalize().scale(speedCap);
 			}
 			velocities.add(nextVelocity);
 		}
@@ -275,6 +310,10 @@ public final class MyriadSwordsController {
 	private static void syncLevel(ServerLevel level, List<VirtualSword> active) {
 		List<SwordSnapshot> snapshots = new ArrayList<>(active.size());
 		for (VirtualSword sword : active) {
+			if (!sword.active || sword.ownerId == null || sword.visualStack.isEmpty()) {
+				continue;
+			}
+
 			snapshots.add(new SwordSnapshot(
 				sword.ownerId,
 				sword.id,
@@ -377,15 +416,22 @@ public final class MyriadSwordsController {
 			for (VirtualSword sword : this.swords) {
 				if (sword != null && sword.active && sword.level == level) {
 					participants.add(sword);
-					if (sword.position.distanceToSqr(targetCenter) <= hitRangeSqr) {
-						executeStrike(level, target, participants);
-						return;
-					}
 				}
 			}
 
 			if (participants.isEmpty()) {
 				this.targetId = null;
+				return;
+			}
+
+			VirtualSword sampleSword = participants.get(level.random.nextInt(participants.size()));
+			StrikeSolution strikeSolution = sampleSword.computeGuaranteedStrikeSolution(targetCenter, hitRange);
+			for (VirtualSword sword : participants) {
+				sword.applyGuaranteedStrikeSolution(strikeSolution);
+				if (sword.position.distanceToSqr(targetCenter) <= hitRangeSqr) {
+					executeStrike(level, target, participants);
+					return;
+				}
 			}
 		}
 
@@ -408,10 +454,11 @@ public final class MyriadSwordsController {
 			}
 
 			float finalDamage = Math.max(1.0F, totalDamage / 3.0F);
+			Vec3 targetCenter = target.getBoundingBox().getCenter();
 			if (target.hurtServer(level, damageSource, finalDamage)) {
 				for (VirtualSword sword : swords) {
 					EnchantmentHelper.doPostAttackEffectsWithItemSource(level, target, damageSource, sword.visualStack);
-					sword.deactivate();
+					sword.reboundFromStrike(targetCenter);
 				}
 			}
 
@@ -449,6 +496,8 @@ public final class MyriadSwordsController {
 		private Vec3 velocity = Vec3.ZERO;
 		private Vec3 forward = Vec3.ZERO;
 		private int ageTicks;
+		private int returnDelayTicks;
+		private boolean returningToOrbit;
 
 		private VirtualSword(SwordPool pool, int id, int poolIndex) {
 			this.pool = pool;
@@ -465,6 +514,8 @@ public final class MyriadSwordsController {
 			this.velocity = velocity;
 			this.forward = forward.normalize();
 			this.ageTicks = 0;
+			this.returnDelayTicks = 0;
+			this.returningToOrbit = false;
 		}
 
 		private Vec3 computeOrbitCenter(ServerPlayer owner) {
@@ -472,18 +523,24 @@ public final class MyriadSwordsController {
 		}
 
 		private Vec3 computeOrbitAnchor(ServerPlayer owner) {
-			double angle = this.level.getGameTime() * 0.17D + this.poolIndex * (Math.PI * 0.52D);
-			double radius = ORBIT_RADIUS + (this.poolIndex % 3) * ORBIT_RADIUS_STEP;
+			double angle = this.level.getGameTime() * 0.145D + this.poolIndex * (Math.PI * 0.52D);
+			double radius = ORBIT_RADIUS + (this.poolIndex % 5) * ORBIT_RADIUS_STEP;
 			Vec3 center = computeOrbitCenter(owner);
+			Vec3 ownerDrift = owner.getDeltaMovement().scale(1.3D);
 			double verticalWave = Math.sin((this.level.getGameTime() + this.poolIndex * 5) * 0.16D) * ORBIT_VERTICAL_WAVE;
-			return center.add(Math.cos(angle) * radius, verticalWave, Math.sin(angle) * radius);
+			return center.add(Math.cos(angle) * radius, verticalWave, Math.sin(angle) * radius).add(ownerDrift);
 		}
 
 		private void tick(Vec3 nextVelocity) {
 			this.velocity = nextVelocity;
 			this.position = this.position.add(this.velocity);
 			this.forward = this.velocity.normalize();
-			this.ageTicks++;
+			if (this.returnDelayTicks > 0) {
+				this.returnDelayTicks--;
+			}
+			if (!this.shouldPauseLifetime()) {
+				this.ageTicks++;
+			}
 			if (this.ageTicks >= LIFETIME_TICKS) {
 				entityizeAndDrop();
 			}
@@ -502,6 +559,67 @@ public final class MyriadSwordsController {
 			return this.ownerId == null ? null : level.getServer().getPlayerList().getPlayer(this.ownerId);
 		}
 
+		private StrikeSolution computeGuaranteedStrikeSolution(Vec3 targetCenter, double hitRange) {
+			Vec3 toTarget = targetCenter.subtract(this.position);
+			double distance = toTarget.length();
+			if (distance <= 1.0E-4D) {
+				Vec3 fallbackForward = this.forward.lengthSqr() > 1.0E-4D ? this.forward : new Vec3(0.0D, 0.0D, 1.0D);
+				return new StrikeSolution(Vec3.ZERO, fallbackForward, false);
+			}
+
+			Vec3 direction = toTarget.normalize();
+			double travelDistance = Math.min(
+				Math.max(distance - hitRange * 0.25D, TRACKING_FORCE_STEP),
+				TRACKING_MAX_SPEED
+			);
+			Vec3 guaranteedVelocity = direction.scale(travelDistance);
+			Vec3 resultingPosition = this.position.add(guaranteedVelocity);
+			double remainingDistance = resultingPosition.distanceTo(targetCenter);
+			if (remainingDistance > hitRange && distance <= TRACKING_SNAP_DISTANCE) {
+				resultingPosition = targetCenter.subtract(direction.scale(Math.max(hitRange * 0.2D, 0.1D)));
+				guaranteedVelocity = resultingPosition.subtract(this.position);
+			}
+
+			return new StrikeSolution(guaranteedVelocity, direction, true);
+		}
+
+		private void applyGuaranteedStrikeSolution(StrikeSolution strikeSolution) {
+			if (!strikeSolution.valid) {
+				return;
+			}
+
+			this.velocity = strikeSolution.velocity;
+			this.forward = strikeSolution.forward;
+			this.position = this.position.add(strikeSolution.velocity);
+		}
+
+		private void reboundFromStrike(Vec3 targetCenter) {
+			Vec3 away = this.position.subtract(targetCenter);
+			if (away.lengthSqr() <= 1.0E-4D) {
+				away = this.forward.lengthSqr() > 1.0E-4D ? this.forward : new Vec3(0.0D, 1.0D, 0.0D);
+			}
+
+			Vec3 rebound = away.normalize().add(0.0D, 0.45D, 0.0D).normalize().scale(1.15D);
+			this.velocity = rebound;
+			this.forward = rebound.normalize();
+			this.position = targetCenter.add(this.forward.scale(1.2D));
+			this.returnDelayTicks = RETURN_DELAY_TICKS;
+			this.returningToOrbit = true;
+		}
+
+		private boolean isReturnDelayed() {
+			return this.returningToOrbit && this.returnDelayTicks > 0;
+		}
+
+		private boolean shouldPauseLifetime() {
+			return this.pool.targetId != null || this.returningToOrbit || this.returnDelayTicks > 0;
+		}
+
+		private void finishReturnToOrbit() {
+			this.returningToOrbit = false;
+			this.returnDelayTicks = 0;
+		}
+
 		private void deactivate() {
 			this.active = false;
 			this.visualStack = ItemStack.EMPTY;
@@ -509,6 +627,11 @@ public final class MyriadSwordsController {
 			this.velocity = Vec3.ZERO;
 			this.forward = Vec3.ZERO;
 			this.ownerId = null;
+			this.returnDelayTicks = 0;
+			this.returningToOrbit = false;
 		}
+	}
+
+	private record StrikeSolution(Vec3 velocity, Vec3 forward, boolean valid) {
 	}
 }

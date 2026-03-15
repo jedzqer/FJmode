@@ -30,8 +30,7 @@ public class MinecraftAttackMixin {
 			return;
 		}
 
-		boolean hasMyriadTargeting = MyriadSwordsController.isMyriadSword(this.player.getMainHandItem(), this.player)
-			&& MyriadSwordsClient.hasActiveSwords(this.player.getUUID());
+		boolean hasMyriadTargeting = MyriadSwordsClient.hasActiveSwords(this.player.getUUID());
 		if (SwordFlightController.hasSwordFlightWeapon(this.player) && !hasMyriadTargeting) {
 			cir.setReturnValue(false);
 		}
