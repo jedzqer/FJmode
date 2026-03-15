@@ -541,7 +541,7 @@ public final class MyriadSwordsController {
 			ItemAttributeModifiers modifiers = stack.getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY);
 			double baseDamage = modifiers.compute(Attributes.ATTACK_DAMAGE, 0.0D, EquipmentSlot.MAINHAND);
 			if (baseDamage <= 0.0D) {
-				baseDamage = 1.0D;
+				throw new IllegalStateException("Myriad sword stack has no attack damage modifiers: " + stack + ", components=" + modifiers);
 			}
 
 			float damage = EnchantmentHelper.modifyDamage(

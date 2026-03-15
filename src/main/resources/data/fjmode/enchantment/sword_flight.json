@@ -4,7 +4,7 @@
     "translate": "enchantment.fjmode.sword_flight"
   },
   "effects": {},
-  "exclusive_set": "#minecraft:exclusive_set/damage",
+  "exclusive_set": "#fjmode:exclusive_set/sword_flight",
   "max_cost": {
     "base": 11,
     "per_level_above_first": 0

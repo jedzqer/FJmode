@@ -4,7 +4,7 @@
     "translate": "enchantment.fjmode.myriad_swords_return"
   },
   "effects": {},
-  "exclusive_set": "#minecraft:exclusive_set/damage",
+  "exclusive_set": "#fjmode:exclusive_set/myriad_swords_return",
   "max_cost": {
     "base": 36,
     "per_level_above_first": 10
