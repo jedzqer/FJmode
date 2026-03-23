@@ -77,6 +77,7 @@ public final class MyriadSwordsController {
 	private static final double ORBIT_HEIGHT = 5.3D;
 	private static final double ORBIT_VERTICAL_WAVE = 2.9D;
 	private static final double ORBIT_VERTICAL_LAYER_STEP = 0.95D;
+	private static final int ENTITYIZE_AIR_SEARCH_RADIUS = 3;
 
 	private MyriadSwordsController() {
 	}
@@ -378,6 +379,32 @@ public final class MyriadSwordsController {
 		}
 	}
 
+	private static Vec3 findNearestAirSpawn(ServerLevel level, Vec3 origin) {
+		BlockPos originPos = BlockPos.containing(origin);
+		Vec3 bestSpawn = null;
+		double bestDistanceSqr = Double.MAX_VALUE;
+
+		for (int dx = -ENTITYIZE_AIR_SEARCH_RADIUS; dx <= ENTITYIZE_AIR_SEARCH_RADIUS; dx++) {
+			for (int dy = -ENTITYIZE_AIR_SEARCH_RADIUS; dy <= ENTITYIZE_AIR_SEARCH_RADIUS; dy++) {
+				for (int dz = -ENTITYIZE_AIR_SEARCH_RADIUS; dz <= ENTITYIZE_AIR_SEARCH_RADIUS; dz++) {
+					BlockPos candidatePos = originPos.offset(dx, dy, dz);
+					if (!level.isEmptyBlock(candidatePos)) {
+						continue;
+					}
+
+					Vec3 candidate = Vec3.atCenterOf(candidatePos);
+					double distanceSqr = candidate.distanceToSqr(origin);
+					if (distanceSqr < bestDistanceSqr) {
+						bestDistanceSqr = distanceSqr;
+						bestSpawn = candidate;
+					}
+				}
+			}
+		}
+
+		return bestSpawn == null ? origin : bestSpawn;
+	}
+
 	private static final class SwordPool {
 		private final VirtualSword[] swords = new VirtualSword[BASE_POOL_SIZE + EXTRA_POOL_SIZE_PER_LEVEL * 2];
 		private int nextId = 1;
@@ -640,7 +667,8 @@ public final class MyriadSwordsController {
 		}
 
 		private void entityizeAndDrop() {
-			GroundedSwordEntity itemEntity = new GroundedSwordEntity(this.level, this.position.x, this.position.y, this.position.z, this.visualStack.copy());
+			Vec3 spawnPosition = findNearestAirSpawn(this.level, this.position);
+			GroundedSwordEntity itemEntity = new GroundedSwordEntity(this.level, spawnPosition.x, spawnPosition.y, spawnPosition.z, this.visualStack.copy());
 			Vec3 launchVelocity = this.velocity.lengthSqr() > 1.0E-4D
 				? this.velocity.normalize().scale(Math.max(0.4D, this.velocity.length() * 0.7D))
 				: new Vec3(0.0D, -0.2D, 0.0D);
