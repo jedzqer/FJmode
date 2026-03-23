@@ -524,7 +524,7 @@ public final class MyriadSwordsController {
 				totalDamage += computeSwordDamage(level, owner, target, sword.visualStack);
 			}
 
-			float finalDamage = Math.max(1.0F, totalDamage / 3.0F);
+			float finalDamage = Math.max(1.0F, totalDamage);
 			Vec3 targetCenter = target.getBoundingBox().getCenter();
 			if (target.hurtServer(level, damageSource, finalDamage)) {
 				for (VirtualSword sword : swords) {
