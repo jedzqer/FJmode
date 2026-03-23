@@ -22,7 +22,7 @@ public final class ModEntities {
 		GROUNDED_SWORD_ID,
 		FabricEntityTypeBuilder.<GroundedSwordEntity>create(MobCategory.MISC, GroundedSwordEntity::new)
 			.dimensions(EntityDimensions.scalable(0.5F, 0.5F))
-			.trackRangeBlocks(4)
+			.trackRangeBlocks(32)
 			.trackedUpdateRate(20)
 			.build(GROUNDED_SWORD_KEY)
 	);

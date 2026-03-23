@@ -17,6 +17,7 @@ import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -35,6 +36,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.phys.Vec3;
 
 public final class MyriadSwordsController {
@@ -72,12 +74,15 @@ public final class MyriadSwordsController {
 	private static final double RETURN_COMPLETE_DISTANCE = 2.4D;
 	private static final double RETURN_ORBIT_BAND_TOLERANCE = 2.6D;
 	private static final double RETURN_ORBIT_VERTICAL_TOLERANCE = 2.8D;
+	private static final double LOYALTY_RETURN_PICKUP_DISTANCE = 1.35D;
 	private static final double ORBIT_RADIUS = 9.75D;
 	private static final double ORBIT_RADIUS_STEP = 1.8D;
 	private static final double ORBIT_HEIGHT = 5.3D;
 	private static final double ORBIT_VERTICAL_WAVE = 2.9D;
 	private static final double ORBIT_VERTICAL_LAYER_STEP = 0.95D;
 	private static final int ENTITYIZE_AIR_SEARCH_RADIUS = 3;
+	private static final double LOYALTY_RETURN_BASE_SPEED = 1.1D;
+	private static final double LOYALTY_RETURN_SPEED_PER_LEVEL = 0.35D;
 
 	private MyriadSwordsController() {
 	}
@@ -284,6 +289,17 @@ public final class MyriadSwordsController {
 
 			double speedCap = trackingTarget ? TRACKING_MAX_SPEED : MAX_SPEED;
 			double drag = trackingTarget ? TRACKING_DRAG : DRAG;
+
+			if (sword.returningToOwner) {
+				Vec3 ownerPoint = sword.getOwnerReturnPoint();
+				Vec3 toOwner = ownerPoint.subtract(sword.position);
+				if (toOwner.lengthSqr() > 1.0E-4D) {
+					double loyaltySpeed = sword.getLoyaltyReturnSpeed();
+					Vec3 directVelocity = toOwner.normalize().scale(loyaltySpeed);
+					velocities.add(directVelocity);
+					continue;
+				}
+			}
 
 			if (trackingTarget) {
 				Vec3 targetPoint = flightContext.targetPoint();
@@ -512,7 +528,7 @@ public final class MyriadSwordsController {
 			double hitRangeSqr = hitRange * hitRange;
 			Vec3 targetCenter = target.getBoundingBox().getCenter();
 			for (VirtualSword sword : this.swords) {
-				if (sword != null && sword.active && sword.level == level) {
+				if (sword != null && sword.active && sword.level == level && !sword.returningToOwner) {
 					participants.add(sword);
 				}
 			}
@@ -583,7 +599,7 @@ public final class MyriadSwordsController {
 
 		private boolean hasSwordReadyForRetarget() {
 			for (VirtualSword sword : this.swords) {
-				if (sword != null && sword.active && !sword.returningToOrbit && sword.returnDelayTicks <= 0) {
+				if (sword != null && sword.active && !sword.returningToOrbit && !sword.returningToOwner && sword.returnDelayTicks <= 0) {
 					return true;
 				}
 			}
@@ -617,6 +633,7 @@ public final class MyriadSwordsController {
 		private int ageTicks;
 		private int returnDelayTicks;
 		private boolean returningToOrbit;
+		private boolean returningToOwner;
 
 		private VirtualSword(SwordPool pool, int id, int poolIndex) {
 			this.pool = pool;
@@ -635,6 +652,7 @@ public final class MyriadSwordsController {
 			this.ageTicks = 0;
 			this.returnDelayTicks = 0;
 			this.returningToOrbit = false;
+			this.returningToOwner = false;
 		}
 
 		private Vec3 computeOrbitCenter(ServerPlayer owner) {
@@ -661,8 +679,14 @@ public final class MyriadSwordsController {
 			if (!this.shouldPauseLifetime()) {
 				this.ageTicks++;
 			}
+			if (this.returningToOwner) {
+				tryCompleteLoyaltyReturn();
+				return;
+			}
 			if (this.ageTicks >= LIFETIME_TICKS) {
-				entityizeAndDrop();
+				if (!tryStartLoyaltyReturn()) {
+					entityizeAndDrop();
+				}
 			}
 		}
 
@@ -737,6 +761,7 @@ public final class MyriadSwordsController {
 			this.position = targetCenter.add(carryThrough.normalize().scale(1.45D));
 			this.returnDelayTicks = RETURN_DELAY_TICKS;
 			this.returningToOrbit = true;
+			this.returningToOwner = false;
 		}
 
 		private boolean isReturnDelayed() {
@@ -744,7 +769,7 @@ public final class MyriadSwordsController {
 		}
 
 		private boolean shouldPauseLifetime() {
-			return this.pool.targetId != null || this.returningToOrbit || this.returnDelayTicks > 0;
+			return this.pool.targetId != null || this.returningToOrbit || this.returningToOwner || this.returnDelayTicks > 0;
 		}
 
 		private boolean hasReturnedToOrbit(Vec3 orbitCenter, Vec3 orbitAnchor) {
@@ -764,6 +789,64 @@ public final class MyriadSwordsController {
 			this.returnDelayTicks = 0;
 		}
 
+		private boolean tryStartLoyaltyReturn() {
+			int loyaltyLevel = getLoyaltyLevel();
+			if (loyaltyLevel <= 0) {
+				return false;
+			}
+
+			ServerPlayer owner = owner(this.level);
+			if (owner == null || !owner.isAlive() || owner.level() != this.level) {
+				return false;
+			}
+
+			this.returningToOwner = true;
+			this.returningToOrbit = false;
+			this.returnDelayTicks = 0;
+			return true;
+		}
+
+		private void tryCompleteLoyaltyReturn() {
+			ServerPlayer owner = owner(this.level);
+			if (owner == null || !owner.isAlive() || owner.level() != this.level) {
+				entityizeAndDrop();
+				return;
+			}
+
+			if (this.position.distanceTo(owner.position().add(0.0D, owner.getBbHeight() * 0.5D, 0.0D)) > LOYALTY_RETURN_PICKUP_DISTANCE) {
+				return;
+			}
+
+			ItemStack returningStack = this.visualStack.copy();
+			if (owner.getInventory().add(returningStack)) {
+				deactivate();
+				return;
+			}
+
+			this.position = owner.position();
+			this.velocity = Vec3.ZERO;
+			entityizeAndDrop();
+		}
+
+		private Vec3 getOwnerReturnPoint() {
+			ServerPlayer owner = owner(this.level);
+			if (owner == null) {
+				return this.position;
+			}
+			return owner.position().add(0.0D, owner.getBbHeight() * 0.5D, 0.0D);
+		}
+
+		private int getLoyaltyLevel() {
+			return EnchantmentHelper.getItemEnchantmentLevel(
+				this.level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT).getOrThrow(Enchantments.LOYALTY),
+				this.visualStack
+			);
+		}
+
+		private double getLoyaltyReturnSpeed() {
+			return LOYALTY_RETURN_BASE_SPEED + Math.max(0, getLoyaltyLevel() - 1) * LOYALTY_RETURN_SPEED_PER_LEVEL;
+		}
+
 		private void deactivate() {
 			this.active = false;
 			this.visualStack = ItemStack.EMPTY;
@@ -773,6 +856,7 @@ public final class MyriadSwordsController {
 			this.ownerId = null;
 			this.returnDelayTicks = 0;
 			this.returningToOrbit = false;
+			this.returningToOwner = false;
 		}
 	}
 

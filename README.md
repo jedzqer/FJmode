@@ -41,8 +41,9 @@
 - 单把剑伤害会尽量带上剑本体攻击力和附魔伤害修正
 - 命中后会触发附魔后攻击效果结算，随后先沿当前突进方向继续穿出，带少量上扬惯性，再回到活动范围并恢复原有集群飞行
 - 在追踪、命中回弹、回群等特殊阶段会暂停寿命计时，避免过渡过程中意外进入掉落/消失路径
-- 飞行满 `60` 秒后会转为可插地的飞剑实体，保留少量惯性飞出并插在地面上，等待玩家自行回收
-- 玩家退出世界、断线或服务端关闭时，仍在天上的虚拟飞剑会立即实体化并保留在世界中，随后按实体物理自然下落并插地，避免直接丢失
+- 未附 `忠诚` 时，飞行满 `60` 秒后会转为可插地的飞剑实体，保留少量惯性飞出；命中方块后会正式插入方块并长期保留，等待玩家自行回收
+- 已附 `忠诚` 时，飞行满 `60` 秒后不会落地，而是直接返主；接近玩家后优先回到背包，背包已满则在玩家脚下转为可插地飞剑并插地保留
+- 玩家退出世界、断线或服务端关闭时，仍在天上的虚拟飞剑会立即实体化并保留在世界中，随后按实体物理自然下落；命中方块后会插地保留，避免直接丢失
 
 ### 攻击限制
 
@@ -74,7 +75,7 @@
   服务端飞行控制核心，负责飞行判定、滑翔速度更新、助推、耐久和饱食度消耗。
 
 - [MyriadSwordsController.java](C:/Users/jed/FJmode/src/main/java/com/fjmode/flight/MyriadSwordsController.java)
-  万剑归宗服务端核心，负责蓄力发射、飞剑池管理、Boids 运动、近战/远程目标锁定、追踪攻击、命中后返航、伤害结算，以及寿命结束或玩家离场时的实体化保留。
+  万剑归宗服务端核心，负责蓄力发射、飞剑池管理、Boids 运动、近战/远程目标锁定、追踪攻击、命中后返航、伤害结算，以及寿命结束或玩家离场时的返主/实体化保留。
 
 - [SwordFlightClient.java](C:/Users/jed/FJmode/src/client/java/com/fjmode/flight/SwordFlightClient.java)
   客户端每 tick 监听冲刺键，并在飞行时发送助推包。
@@ -102,6 +103,7 @@
 
 - [data/fjmode/tags/item/enchantable/sword_flight.json](C:/Users/jed/FJmode/src/main/resources/data/fjmode/tags/item/enchantable/sword_flight.json)
 - [data/fjmode/tags/item/enchantable/myriad_swords_return.json](C:/Users/jed/FJmode/src/main/resources/data/fjmode/tags/item/enchantable/myriad_swords_return.json)
+- [data/minecraft/tags/item/enchantable/trident.json](C:/Users/jed/FJmode/src/main/resources/data/minecraft/tags/item/enchantable/trident.json)
 
 附魔可见性标签：
 
@@ -188,7 +190,10 @@
 - 追踪与群飞速度都在服务端按池统一调度；追踪阶段只取一把样本飞剑求解，其余飞剑复用结果，群飞阶段会共享同池的目标与持有者上下文，减少重复查询
 - 盘旋锚点采用按半径分层、按高度分层再叠加垂直波动的方式，形成更高更宽的立体盘旋范围
 - 命中后飞剑不会消耗，而是回弹、回群并在重新进入可用盘旋状态后参与下一轮锁敌
-- 在锁定追踪、命中回弹和回群阶段会暂停寿命计时；寿命结束或玩家离场时，会把仍在空中的虚拟飞剑转换为可插地的飞剑实体保留在世界中
+- 在锁定追踪、命中回弹和回群阶段会暂停寿命计时
+- 未附 `忠诚` 的飞剑在寿命结束或玩家离场时，会把仍在空中的虚拟飞剑转换为可插地的飞剑实体；实体命中方块后会正式插地、长期保留，并可被玩家拾取
+- 已附 `忠诚` 的飞剑在寿命结束时会进入返主状态并飞向玩家；接近玩家后优先尝试回到背包，若背包已满则在玩家脚下转为可插地飞剑并插地保留
+- 通过覆盖 `data/minecraft/tags/item/enchantable/trident.json`，`忠诚` 现在也可附加到支持 `万剑归宗` 的剑上
 
 ## 构建与运行
 
