@@ -9,8 +9,8 @@ public final class ModNetworking {
 	}
 
 	public static void register() {
-		PayloadTypeRegistry.playC2S().register(SwordFlightBoostPayload.TYPE, SwordFlightBoostPayload.CODEC);
-		PayloadTypeRegistry.playS2C().register(MyriadSwordsSyncPayload.TYPE, MyriadSwordsSyncPayload.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(SwordFlightBoostPayload.TYPE, SwordFlightBoostPayload.CODEC);
+		PayloadTypeRegistry.clientboundPlay().register(MyriadSwordsSyncPayload.TYPE, MyriadSwordsSyncPayload.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(SwordFlightBoostPayload.TYPE, (payload, context) ->
 			SwordFlightController.triggerBoost(context.player())
 		);

@@ -538,7 +538,7 @@ public final class MyriadSwordsController {
 				return;
 			}
 
-			VirtualSword sampleSword = participants.get(level.random.nextInt(participants.size()));
+			VirtualSword sampleSword = participants.get(level.getRandom().nextInt(participants.size()));
 			StrikeSolution strikeSolution = sampleSword.computeGuaranteedStrikeSolution(targetCenter, hitRange);
 			for (VirtualSword sword : participants) {
 				sword.applyGuaranteedStrikeSolution(strikeSolution);

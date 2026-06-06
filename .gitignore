@@ -32,6 +32,10 @@ bin/
 
 run/
 
+# local tooling
+
+.codex-probe/
+
 # java
 
 hs_err_*.log

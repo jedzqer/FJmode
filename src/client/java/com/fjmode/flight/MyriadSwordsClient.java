@@ -10,8 +10,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
@@ -36,7 +36,7 @@ public final class MyriadSwordsClient {
 	}
 
 	public static void register() {
-		WorldRenderEvents.AFTER_ENTITIES.register(MyriadSwordsClient::renderSwords);
+		LevelRenderEvents.COLLECT_SUBMITS.register(MyriadSwordsClient::renderSwords);
 	}
 
 	public static void registerNetworking() {
@@ -84,14 +84,14 @@ public final class MyriadSwordsClient {
 		return OWNERS_WITH_ACTIVE_SWORDS.contains(ownerId);
 	}
 
-	private static void renderSwords(WorldRenderContext context) {
+	private static void renderSwords(LevelRenderContext context) {
 		Minecraft client = Minecraft.getInstance();
 		if (client.level == null || client.player == null || ACTIVE_SWORDS.isEmpty()) {
 			return;
 		}
 
-		Vec3 cameraPos = context.worldState().cameraRenderState.pos;
-		PoseStack poseStack = context.matrices();
+		Vec3 cameraPos = context.levelState().cameraRenderState.pos;
+		PoseStack poseStack = context.poseStack();
 		for (ClientSwordState state : ACTIVE_SWORDS.values()) {
 			state.renderPosition = state.renderPosition.lerp(state.position, POSITION_SMOOTHING);
 			Vec3 targetRenderVelocity = state.velocity.lengthSqr() > 1.0E-4D ? state.velocity.normalize() : state.renderVelocity;
@@ -114,14 +114,14 @@ public final class MyriadSwordsClient {
 				direction.z
 			);
 			float roll = (float) Math.toRadians(45.0F + 20.0F * Mth.sin(client.level.getGameTime() * 0.2F));
-			int packedLight = LevelRenderer.getLightColor(client.level, BlockPos.containing(state.renderPosition));
+			int packedLight = LevelRenderer.getLightCoords(client.level, BlockPos.containing(state.renderPosition));
 
 			poseStack.pushPose();
 			poseStack.translate(state.renderPosition.x - cameraPos.x, state.renderPosition.y - cameraPos.y, state.renderPosition.z - cameraPos.z);
 			poseStack.mulPose(facingRotation);
 			poseStack.mulPose(new Quaternionf().rotationY(roll));
 			poseStack.scale(1.35F, 1.35F, 1.35F);
-			state.renderState.submit(poseStack, context.commandQueue(), packedLight, 0, 0);
+			state.renderState.submit(poseStack, context.submitNodeCollector(), packedLight, 0, 0);
 			poseStack.popPose();
 		}
 	}

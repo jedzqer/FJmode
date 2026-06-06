@@ -1,15 +1,16 @@
 # FJmode
 
-`FJmode` 是一个基于 Fabric 的 Minecraft `1.21.11` 模组项目，当前方向是附魔效果扩展。现阶段已实现两个剑类附魔：`御剑飞行` 与 `万剑归宗`。
+`FJmode` 是一个基于 Fabric 的 Minecraft `26.1.2` 模组项目，当前方向是附魔效果扩展。现阶段已实现两个剑类附魔：`御剑飞行` 与 `万剑归宗`。
+**模组下载**：https://modrinth.com/mod/flying-with-sword 
 
 ## 技术栈
 
-- Minecraft `1.21.11`
-- Fabric Loader `0.18.2`
-- Fabric API `0.139.4+1.21.11`
-- Fabric Loom `1.14-SNAPSHOT`
-- Java `21`
-- Mojang Official Mappings
+- Minecraft `26.1.2`
+- Fabric Loader `0.19.3`
+- Fabric API `0.150.0+26.1.2`
+- Fabric Loom `1.16.3`
+- Java `25`
+- Mojang Official Mappings / official unobfuscated runtime
 
 项目配置见 [gradle.properties](C:/Users/jed/FJmode/gradle.properties)。
 
@@ -167,6 +168,7 @@
 
 - 常见 Fabric 教程中的类名不一定可直接复制
 - 方法名、字段名和导入路径要以当前项目和编译器结果为准
+- `26.1.x` 开始，Minecraft/Fabric 的部分构建配置和 API 命名切到了新的版本体系，旧的 `1.21.x` 示例不能直接照搬
 
 当前已确认的典型差异：
 
@@ -208,6 +210,10 @@
 ```powershell
 .\gradlew.bat runClient
 ```
+
+当前已验证：
+
+- `.\gradlew.bat build` 已在 `MC 26.1.2` 配置下成功通过
 
 建议：
 
