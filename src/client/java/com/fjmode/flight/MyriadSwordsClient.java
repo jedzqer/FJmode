@@ -13,9 +13,9 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.LightCoordsUtil;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.phys.Vec3;
@@ -114,7 +114,7 @@ public final class MyriadSwordsClient {
 				direction.z
 			);
 			float roll = (float) Math.toRadians(45.0F + 20.0F * Mth.sin(client.level.getGameTime() * 0.2F));
-			int packedLight = LevelRenderer.getLightCoords(client.level, BlockPos.containing(state.renderPosition));
+			int packedLight = LightCoordsUtil.getLightCoords(client.level, BlockPos.containing(state.renderPosition));
 
 			poseStack.pushPose();
 			poseStack.translate(state.renderPosition.x - cameraPos.x, state.renderPosition.y - cameraPos.y, state.renderPosition.z - cameraPos.z);

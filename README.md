@@ -1,14 +1,15 @@
 # FJmode
 
-`FJmode` 是一个基于 Fabric 的 Minecraft `26.1.2` 模组项目，当前方向是附魔效果扩展。现阶段已实现两个剑类附魔：`御剑飞行` 与 `万剑归宗`。
+`FJmode` 是一个基于 Fabric 的 Minecraft `26.2` 模组项目，当前方向是附魔效果扩展。现阶段已实现两个剑类附魔：`御剑飞行` 与 `万剑归宗`。
 **模组下载**：https://modrinth.com/mod/flying-with-sword 
 
 ## 技术栈
 
-- Minecraft `26.1.2`
-- Fabric Loader `0.19.3`
-- Fabric API `0.150.0+26.1.2`
-- Fabric Loom `1.16.3`
+- Minecraft `26.2`
+- Fabric Loader `0.19.5`
+- Fabric API `0.160.0+26.2`
+- Fabric Loom `1.17.20`
+- Gradle `9.7.1`
 - Java `25`
 - Mojang Official Mappings / official unobfuscated runtime
 
@@ -175,6 +176,14 @@
 - `ServerPlayerEntity` 对应 `ServerPlayer`
 - `Text` 对应 `Component`
 - `Identifier.of(...)` 应使用 `Identifier.fromNamespaceAndPath(...)`
+
+`26.2` 迁移中确认的变化：
+
+- Fabric API 移除了 `FabricEntityTypeBuilder`，改用原版 `EntityType.Builder.of(工厂, MobCategory)`
+  - `dimensions(EntityDimensions.scalable(w, h))` → `sized(w, h)`
+  - `trackRangeBlocks(n)` → `clientTrackingRange(n / 16)`（单位由方块变为区块）
+  - `trackedUpdateRate(n)` → `updateInterval(n)`
+- `LevelRenderer.getLightCoords(...)` 已移除，改用 `net.minecraft.util.LightCoordsUtil.getLightCoords(...)`
 
 ### 分层建议
 
