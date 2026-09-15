@@ -24,7 +24,7 @@
 - 飞行基础速度公式对齐原版鞘翅滑翔
 - 飞行时保持站立姿态
 - 飞行时隐藏玩家手中的剑，并在脚下居中渲染同款剑模型
-- 飞行中按 `Ctrl` 可触发接近原版烟花的持续助推
+- 飞行中按 `空格`（跳跃键）可触发接近原版烟花的持续助推
 - 助推会额外消耗饱食度
 - 飞行过程会持续消耗剑耐久
 
@@ -80,7 +80,7 @@
   万剑归宗服务端核心，负责蓄力发射、飞剑池管理、Boids 运动、近战/远程目标锁定、追踪攻击、命中后返航、伤害结算，以及寿命结束或玩家离场时的返主/实体化保留。
 
 - [SwordFlightClient.java](C:/Users/jed/FJmode/src/client/java/com/fjmode/flight/SwordFlightClient.java)
-  客户端每 tick 监听冲刺键，并在飞行时发送助推包。
+  客户端每 tick 监听跳跃键，飞行时按下跳跃即发送助推包。
 
 - [MyriadSwordsClient.java](C:/Users/jed/FJmode/src/client/java/com/fjmode/flight/MyriadSwordsClient.java)
   客户端接收飞剑快照并在世界中渲染虚拟飞剑。
